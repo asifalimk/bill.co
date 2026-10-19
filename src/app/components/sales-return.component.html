@@ -1,0 +1,32 @@
+<section class="page-heading no-print">
+  <div><p class="eyebrow">{{ 'AFTER-SALES' | translate }}</p><h1>{{ 'Sales returns' | translate }}</h1><p class="muted">{{ 'Find a session invoice and record returned items.' | translate }}</p></div>
+  <span class="soft-tag">{{ vm.savedReceipts().length }} {{ 'SESSION INVOICES' | translate }}</span>
+</section>
+<section class="panel return-panel no-print">
+  <div class="section-title"><div><span class="step-number">01</span><h2>{{ 'Find an invoice' | translate }}</h2></div></div>
+  <div class="invoice-lookup">
+    <label>{{ 'Invoice number' | translate }}<input [ngModel]="vm.returnInvoiceQuery()" (ngModelChange)="vm.returnInvoiceQuery.set($event)" name="returnInvoiceQuery" [placeholder]="'e.g. INV-1234567' | translate"></label>
+    <button class="button button-primary" type="button" (click)="vm.findReturnInvoice()">{{ 'Look up invoice' | translate }}</button>
+  </div>
+  @if (vm.selectedReturnReceipt(); as foundReceipt) {
+    <div class="invoice-meta"><span><small>{{ 'INVOICE' | translate }}</small><strong>{{ foundReceipt.invoiceNo }}</strong></span><span><small>{{ 'DATE' | translate }}</small><strong>{{ foundReceipt.date | date:'medium' }}</strong></span><span><small>{{ 'ORIGINAL TOTAL' | translate }}</small><strong>₹{{ foundReceipt.total | number:'1.2-2' }}</strong></span></div>
+    <div class="table-wrap return-table-wrap">
+      <table class="data-table"><thead><tr><th>{{ 'ITEM' | translate }}</th><th>{{ 'SOLD QTY' | translate }}</th><th>{{ 'RETURN QTY' | translate }}</th><th>{{ 'REFUND / UNIT' | translate }}</th><th>{{ 'REASON' | translate }}</th><th>{{ 'RESTOCK' | translate }}</th></tr></thead>
+        <tbody>@for (line of vm.returnLines(); track line.original.item.id; let index = $index) {
+          <tr><td class="strong">{{ line.original.item.name }}</td><td>{{ line.original.quantity }}</td>
+            <td><input class="table-input" type="number" min="0" [max]="vm.remainingReturnQuantity(line)" [ngModel]="line.quantity" (ngModelChange)="vm.updateReturnLine(index, 'quantity', $event)" [attr.aria-label]="('Return quantity for ' + line.original.item.name) | translate"></td>
+            <td><span class="refund-price">₹ <input class="table-input" type="number" min="0" step="0.01" [ngModel]="line.refundUnitPrice" (ngModelChange)="vm.updateReturnLine(index, 'refundUnitPrice', $event)" [attr.aria-label]="('Refund unit price for ' + line.original.item.name) | translate"></span></td>
+            <td><select class="table-input" [ngModel]="line.reason" (ngModelChange)="vm.updateReturnLine(index, 'reason', $event)" [attr.aria-label]="('Reason for ' + line.original.item.name) | translate"><option value="Damaged">{{ 'Damaged' | translate }}</option><option value="Excess">{{ 'Excess' | translate }}</option></select></td>
+            <td><input type="checkbox" [ngModel]="line.restock" (ngModelChange)="vm.updateReturnLine(index, 'restock', $event)" [attr.aria-label]="('Restock ' + line.original.item.name) | translate"></td>
+          </tr>
+        }</tbody>
+      </table>
+    </div>
+    <div class="return-actions"><label>{{ 'Refund mode' | translate }}<select [ngModel]="vm.refundMode()" (ngModelChange)="vm.refundMode.set($event)" name="refundMode"><option value="Cash Refund">{{ 'Cash Refund' | translate }}</option><option value="Credit Balance">{{ 'Credit Balance' | translate }}</option></select></label><button class="button button-primary" type="button" (click)="vm.processReturn()">{{ 'Record return' | translate }}</button></div>
+  } @else { <div class="history-empty lookup-empty">{{ 'Invoice lookup searches sales made during this session. Complete a sale first to try a return.' | translate }}</div> }
+</section>
+@if (vm.returnHistory().length) {
+  <section class="panel return-history no-print"><div class="section-title"><div><span class="step-number">↶</span><h2>{{ 'Recent returns' | translate }}</h2></div></div>
+    @for (entry of vm.returnHistory(); track $index) { <div class="history-entry"><span class="history-icon return-icon">↶</span><span><strong>{{ entry.split(' · ')[0] }}</strong><small>{{ entry.split(' · ')[1] }}</small></span><span class="return-amount">{{ entry.split(' · ')[2] }}</span></div> }
+  </section>
+}

@@ -1,0 +1,35 @@
+<section class="page-heading no-print">
+  <div><p class="eyebrow">{{ 'CUSTOMER MANAGEMENT' | translate }}</p><h1>{{ 'Customers' | translate }}</h1><p class="muted">{{ 'Manage customer contact details and outstanding credit.' | translate }}</p></div>
+  <button class="button button-primary" type="button" (click)="openNewCustomer()">{{ 'Add customer' | translate }}</button>
+</section>
+<section class="panel management-panel no-print">
+  <div class="management-toolbar">
+    <strong>{{ customerService.customerCount() }} {{ 'customers' | translate }}</strong>
+    <label class="toolbar-search"><span>⌕</span><input [value]="search()" (input)="search.set(($any($event.target)).value)" [placeholder]="'Search by customer name or phone' | translate" [attr.aria-label]="'Search customers' | translate"></label>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table customer-table">
+      <thead><tr><th>{{ 'Customer name' | translate }}</th><th>{{ 'Phone number' | translate }}</th><th>{{ 'Address' | translate }}</th><th>{{ 'GSTIN' | translate }}</th><th class="align-right">{{ 'Credit outstanding' | translate }}</th><th>{{ 'Created' | translate }}</th><th><span class="sr-only">{{ 'Actions' | translate }}</span></th></tr></thead>
+      <tbody>
+        @for (customer of filteredCustomers(); track customer.id) {
+          <tr><td class="strong">{{ customer.name }}</td><td>{{ customer.phone }}</td><td>{{ customer.address || '—' }}</td><td>{{ customer.gstin || '—' }}</td><td class="align-right strong">₹{{ customer.credit_balance | number:'1.2-2' }}</td><td>{{ customer.created_at | date:'mediumDate' }}</td><td><button class="text-button" type="button" (click)="editCustomer(customer)">{{ 'Edit' | translate }}</button></td></tr>
+        } @empty { <tr><td colspan="7" class="table-empty">{{ 'No customers found.' | translate }}</td></tr> }
+      </tbody>
+    </table>
+  </div>
+</section>
+@if (formOpen()) {
+  <div class="modal-backdrop no-print" (click)="formOpen.set(false)">
+    <section class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="customer-form-title" (click)="$event.stopPropagation()">
+      <div class="modal-heading"><div><p class="eyebrow">{{ 'CUSTOMER MANAGEMENT' | translate }}</p><h2 id="customer-form-title">{{ editingCustomer() ? ('Edit customer' | translate) : ('Add customer' | translate) }}</h2></div><button class="remove-button" type="button" [attr.aria-label]="'Close' | translate" (click)="formOpen.set(false)">×</button></div>
+      <form class="form-grid modal-form" (ngSubmit)="saveCustomer()">
+        <label>{{ 'Customer name' | translate }}<input [(ngModel)]="name" name="customerName" required></label>
+        <label>{{ 'Phone number' | translate }}<input [(ngModel)]="phone" name="customerPhone" inputmode="numeric" maxlength="15" required></label>
+        <label>{{ 'Address' | translate }}<input [(ngModel)]="address" name="customerAddress"></label>
+        <label>{{ 'GSTIN' | translate }}<input [(ngModel)]="gstin" name="customerGstin"></label>
+        @if (formError()) { <p class="form-error" role="alert">{{ formError() | translate }}</p> }
+        <div class="modal-actions"><button class="button button-secondary" type="button" (click)="formOpen.set(false)">{{ 'Cancel' | translate }}</button><button class="button button-primary" type="submit">{{ 'Save customer' | translate }}</button></div>
+      </form>
+    </section>
+  </div>
+}

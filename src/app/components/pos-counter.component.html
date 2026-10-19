@@ -1,0 +1,94 @@
+<section class="page-heading no-print">
+  <div><p class="eyebrow">{{ vm.editingInvoice() ? ('EDIT INVOICE' | translate) : ('POINT OF SALE' | translate) }}</p><h1>{{ vm.editingInvoice() ? vm.editingInvoice()?.invoiceNo : ('Billing counter' | translate) }}</h1><p class="muted">{{ vm.editingInvoice() ? ('Adjust items and save to update this invoice.' | translate) : ('Scan or search an item to start a new sale.' | translate) }}</p></div>
+  @if (vm.editingInvoice()) { <button class="button button-secondary" type="button" (click)="vm.cancelInvoiceEdit()">{{ 'Cancel edit' | translate }}</button> }
+  <div class="date-stamp"><span class="status-dot"></span>{{ vm.today | date }}</div>
+</section>
+<section class="billing-layout no-print">
+  <div class="billing-left">
+    <div class="panel entry-panel">
+      <div class="section-title"><div><span class="step-number">01</span><h2>{{ 'Add items' | translate }}</h2></div><span class="hint">{{ 'Code or product name' | translate }}</span></div>
+      <div class="entry-fields">
+        <label class="search-field">
+          <span class="field-label">{{ 'ITEM CODE / NAME' | translate }}</span>
+          <span class="input-with-icon"><span class="search-icon">⌕</span><input id="itemSearch" name="itemSearch" [value]="vm.query()" (input)="vm.onSearchInput($event)" (keydown)="vm.handleSearchKeydown($event)" [placeholder]="'Try “101” or “PVC pipe”' | translate" autocomplete="off" [attr.aria-label]="'Search item code or name' | translate"></span>
+          @if (vm.suggestions().length) {
+            <div class="suggestions" role="listbox">
+              @for (suggestion of vm.suggestions(); track suggestion.id; let index = $index) {
+                <button type="button" class="suggestion-row" [class.selected]="index === vm.selectedSuggestion()" [class.low-stock-option]="vm.stockIsLow(suggestion)" [disabled]="vm.availableToAdd(suggestion) <= 0" role="option" [attr.aria-selected]="index === vm.selectedSuggestion()" (mouseenter)="vm.selectedSuggestion.set(index)" (click)="vm.selectItem(suggestion)">
+                  <span class="item-code">{{ suggestion.code }}</span><span class="suggestion-name"><strong>{{ suggestion.name }}</strong><small [class.stock-warning-text]="vm.availableToAdd(suggestion) <= 0" [class.stock-low-text]="vm.stockIsLow(suggestion)">{{ vm.availableToAdd(suggestion) > 0 ? ('In Stock:' | translate) + ' ' + vm.availableToAdd(suggestion) + ' ' + suggestion.unit : ('Out of Stock' | translate) }}</small></span>@if (vm.stockIsLow(suggestion)) { <span class="stock-warning-badge">{{ 'Low stock' | translate }}</span> }<strong class="suggestion-price">₹{{ suggestion.selling_price | number:'1.2-2' }}</strong>
+                </button>
+              }
+            </div>
+          }
+        </label>
+        <label class="compact-field quantity-field"><span class="field-label">{{ 'QTY' | translate }}</span><input id="item-quantity" type="text" inputmode="decimal" autocomplete="off" [ngModel]="vm.itemQuantity()" (ngModelChange)="vm.itemQuantity.set($event)" (keydown.enter)="vm.commitStagedItem()" [attr.aria-label]="'Quantity' | translate"></label>
+        <label class="compact-field discount-field"><span class="field-label">{{ 'LINE DISC. ₹' | translate }}</span><input type="number" min="0" step="1" [ngModel]="vm.lineDiscount()" (ngModelChange)="vm.lineDiscount.set($event)" (keydown.enter)="vm.commitStagedItem()" [attr.aria-label]="'Line discount in rupees' | translate"></label>
+        <button class="button button-primary add-button" type="button" (click)="vm.addSearchedItem()">{{ (vm.activeSelectedItem() ? 'Add to cart' : 'Select item') | translate }} <span>↵</span></button>
+      </div>
+      @if (vm.stockWarning()) { <p class="stock-inline-warning" role="alert" aria-live="assertive">{{ vm.stockWarning() | translate }}</p> }
+      @if (vm.activeSelectedItem(); as selectedItem) {
+        <div class="entry-hint staged-item"><span class="item-code">{{ selectedItem.code }}</span><strong>{{ selectedItem.name }}</strong><span>{{ 'Selected — set quantity, then press Enter or Add to cart' | translate }}</span></div>
+      } @else {
+        <div class="entry-hint"><kbd>↑</kbd><kbd>↓</kbd> {{ 'select' | translate }} <span>·</span> {{ 'Enter' | translate }} {{ 'select item' | translate }}</div>
+      }
+    </div>
+    <div class="panel cart-panel">
+      <div class="section-title cart-title"><div><span class="step-number">02</span><h2>{{ 'Current sale' | translate }}</h2><span class="count-pill">{{ vm.billing.lines().length }} {{ 'lines' | translate }}</span></div><button class="text-button" type="button" (click)="vm.resetTransaction()">{{ 'Clear sale' | translate }}</button></div>
+      @if (vm.billing.lines().length) {
+        <div class="table-wrap cart-table-wrap">
+          <table class="data-table cart-table">
+            <thead><tr><th>{{ 'ITEM' | translate }}</th><th>{{ 'QTY' | translate }}</th><th>{{ 'UNIT PRICE' | translate }}</th><th>{{ 'DISC.' | translate }}</th><th class="align-right">{{ 'TOTAL' | translate }}</th><th><span class="sr-only">{{ 'Actions' | translate }}</span></th></tr></thead>
+            <tbody>@for (line of vm.billing.lines(); track line.item.id; let index = $index) {
+              <tr [id]="'cart-row-' + index" tabindex="0" [class.active-row]="vm.selectedCartIndex() === index" (focus)="vm.selectedCartIndex.set(index)" (click)="vm.selectedCartIndex.set(index)" (keydown)="vm.handleCartRowKeydown($event, index)">
+                <td><span class="item-code small-code">{{ line.item.code }}</span><span class="product-name">{{ line.item.name }}</span><small class="unit-label">{{ line.item.unit }}</small></td>
+                <td><input class="table-input cart-edit-input" type="number" min="0.01" step="1" [ngModel]="line.quantity" (ngModelChange)="vm.updateCartLine(line.item.id, 'quantity', $event)" [attr.aria-label]="('Quantity for ' + line.item.name) | translate"></td>
+                <td>₹{{ line.item.selling_price | number:'1.2-2' }}</td>
+                <td><input class="table-input cart-edit-input" type="number" min="0" step="0.01" [ngModel]="line.discount" (ngModelChange)="vm.updateCartLine(line.item.id, 'discount', $event)" [attr.aria-label]="('Discount for ' + line.item.name) | translate"></td>
+                <td class="align-right strong">₹{{ vm.lineTotal(line) | number:'1.2-2' }} @if (vm.stockIsLow(line.item)) { <span class="stock-warning-badge">{{ 'Low stock' | translate }}</span> }</td><td class="align-right"><button class="remove-button" type="button" [attr.aria-label]="('Remove ' + line.item.name) | translate" (click)="vm.billing.remove(line.item.id)">×</button></td>
+              </tr>
+            }</tbody>
+          </table>
+        </div>
+      } @else { <div class="empty-cart"><div class="empty-cart-icon">＋</div><strong>{{ 'Your sale is empty' | translate }}</strong><span>{{ 'Search by item code or name to add products.' | translate }}</span></div> }
+      <div class="cart-footer"><span>{{ vm.billing.itemCount() }} {{ (vm.billing.itemCount() === 1 ? 'item' : 'items') | translate }} · {{ 'F5 focuses cart; use arrow keys to move rows' | translate }}</span><span>{{ 'Inventory updates after checkout' | translate }}</span></div>
+    </div>
+  </div>
+  <aside class="panel summary-panel">
+    <div class="section-title"><div><span class="step-number">03</span><h2>{{ 'Payment' | translate }}</h2></div><span class="secure-label">● {{ 'READY' | translate }}</span></div>
+    <div class="payment-toggle" role="group" [attr.aria-label]="'Payment type' | translate">
+      <button type="button" [class.selected]="vm.billing.paymentType() === 'CASH'" (click)="vm.billing.paymentType.set('CASH')"><span>₹</span> {{ 'Cash' | translate }}</button>
+      <button type="button" [class.selected]="vm.billing.paymentType() === 'CREDIT'" (click)="vm.billing.paymentType.set('CREDIT')"><span>◷</span> {{ 'Credit' | translate }}</button>
+    </div>
+    <div class="customer-fields">
+      <label class="customer-lookup">{{ 'Customer name' | translate }} @if (vm.billing.paymentType() === 'CREDIT') { <span class="required">*</span> }<input id="customer-name" name="customerName" [ngModel]="vm.customerName" (ngModelChange)="vm.updateCustomerLookup($event)" [placeholder]="'Full name or phone' | translate" autocomplete="off" [required]="vm.billing.paymentType() === 'CREDIT'">
+        @if (vm.customerMatches().length) {
+          <span class="customer-suggestions">
+            @for (customer of vm.customerMatches(); track customer.id) {
+              <button type="button" (click)="vm.selectCustomer(customer)"><strong>{{ customer.name }}</strong><small>{{ customer.phone }} · {{ 'Due' | translate }} ₹{{ customer.credit_balance | number:'1.2-2' }}</small></button>
+            }
+          </span>
+        }
+      </label>
+      <label>{{ 'Phone number' | translate }} @if (vm.billing.paymentType() === 'CREDIT') { <span class="required">*</span> }<input id="customer-phone" name="customerPhone" [ngModel]="vm.customerPhone" (ngModelChange)="vm.updateCustomerPhone($event)" inputmode="numeric" maxlength="15" [placeholder]="'7–15 digits' | translate" [required]="vm.billing.paymentType() === 'CREDIT'"></label>
+    </div>
+    <div class="quick-customer-actions"><span>{{ vm.selectedCustomerId !== null ? ('Customer selected' | translate) : ('Customer is optional for cash sales' | translate) }}</span><button class="text-button" type="button" (click)="vm.quickCustomerOpen = !vm.quickCustomerOpen">{{ vm.quickCustomerOpen ? ('Close' | translate) : ('＋ Quick add customer' | translate) }}</button></div>
+    @if (vm.quickCustomerOpen) {
+      <div class="quick-customer-form">
+        <label>{{ 'Address' | translate }}<input [(ngModel)]="vm.quickCustomerAddress" name="quickCustomerAddress"></label>
+        <label>{{ 'GSTIN' | translate }}<input [(ngModel)]="vm.quickCustomerGstin" name="quickCustomerGstin"></label>
+        <button class="button button-secondary" type="button" (click)="vm.createCustomerFromPos()">{{ 'Save customer' | translate }}</button>
+      </div>
+    }
+    <div class="summary-lines">
+      <div><span>{{ 'Subtotal' | translate }}</span><strong>₹{{ vm.billing.subtotal() | number:'1.2-2' }}</strong></div>
+      <label class="summary-discount"><span>{{ 'Bill discount' | translate }}</span><span class="discount-input-wrap">₹ <input id="discount-input" type="number" min="0" [ngModel]="vm.billing.billDiscount()" (ngModelChange)="vm.updateBillDiscount($event)" aria-label="Overall bill discount in rupees"></span></label>
+      @if (vm.billing.billDiscount() > vm.billing.subtotal()) { <small class="discount-warning">{{ 'Discount is applied up to the subtotal.' | translate }}</small> }
+    </div>
+    <div class="net-total"><span>{{ 'NET PAYABLE' | translate }}</span><strong>₹{{ vm.billing.total() | number:'1.2-2' }}</strong><small>{{ 'Inclusive of all discounts' | translate }}</small></div>
+    <div class="payment-actions">
+      <button class="button button-primary button-wide" type="button" (click)="vm.checkout('CASH')"><span>{{ vm.editingInvoice() ? ('Update cash invoice' | translate) : ('Cash sale' | translate) }}</span><kbd>F9</kbd></button>
+      <button class="button button-credit button-wide" type="button" (click)="vm.checkout('CREDIT')"><span>{{ vm.editingInvoice() ? ('Update credit invoice' | translate) : ('Credit sale' | translate) }}</span><kbd>F10</kbd></button>
+    </div>
+    <p class="summary-footnote">{{ 'A receipt preview opens after payment. Press Esc to clear the active sale.' | translate }} <span>F4 {{ 'Customer name' | translate }}</span></p>
+  </aside>
+</section>

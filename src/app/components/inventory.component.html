@@ -1,0 +1,36 @@
+<section class="page-heading no-print">
+  <div><p class="eyebrow">{{ 'CATALOGUE' | translate }}</p><h1>{{ 'Inventory' | translate }}</h1><p class="muted">{{ 'Manage products, prices, and on-hand stock.' | translate }}</p></div>
+  <button class="button button-primary" type="button" (click)="vm.openNewItem()">{{ '＋ Add new item' | translate }}</button>
+</section>
+<section class="panel management-panel no-print">
+  <div class="management-toolbar">
+    <div><strong>{{ vm.inventory.itemCount() }} {{ 'products' | translate }}</strong><span>{{ ' · Stock on hand' | translate }}</span></div>
+    <label class="toolbar-search"><span>⌕</span><input [value]="vm.inventorySearch()" (input)="vm.inventorySearch.set(($any($event.target)).value)" [placeholder]="'Search code or name' | translate" [attr.aria-label]="'Filter inventory' | translate"></label>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table inventory-table">
+      <thead><tr><th>{{ 'CODE' | translate }}</th><th>{{ 'PRODUCT' | translate }}</th><th>{{ 'CATEGORY' | translate }}</th><th>{{ 'UNIT' | translate }}</th><th class="align-right">{{ 'COST PRICE' | translate }}</th><th class="align-right">{{ 'SELLING PRICE' | translate }}</th><th class="align-right">{{ 'IN STOCK' | translate }}</th><th class="align-right">{{ 'MIN STOCK' | translate }}</th><th><span class="sr-only">{{ 'Actions' | translate }}</span></th></tr></thead>
+      <tbody>@for (item of vm.filteredItems(); track item.id) {
+        <tr><td><span class="item-code">{{ item.code }}</span></td><td class="strong">{{ item.name }}</td><td><span class="category-chip">{{ item.category }}</span></td><td>{{ item.unit }}</td><td class="align-right">₹{{ item.purchase_price | number:'1.2-2' }}</td><td class="align-right strong">₹{{ item.selling_price | number:'1.2-2' }}</td><td class="align-right"><span class="stock-value" [class.low-stock]="item.stock_qty < item.min_stock_level">{{ item.stock_qty }}</span></td><td class="align-right">{{ item.min_stock_level }}</td><td><button class="text-button" type="button" (click)="edit(item)">{{ 'Edit' | translate }}</button></td></tr>
+      } @empty { <tr><td colspan="9" class="table-empty">{{ 'No products match your search.' | translate }}</td></tr> }</tbody>
+    </table>
+  </div>
+</section>
+@if (editingItem()) {
+  <div class="modal-backdrop no-print" (click)="editingItem.set(null)">
+    <section class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="edit-item-title" (click)="$event.stopPropagation()">
+      <div class="modal-heading"><div><p class="eyebrow">{{ 'CATALOGUE' | translate }}</p><h2 id="edit-item-title">{{ 'Update item' | translate }}</h2></div><button class="remove-button" type="button" [attr.aria-label]="'Close' | translate" (click)="editingItem.set(null)">×</button></div>
+      <form class="form-grid modal-form" (ngSubmit)="saveEdit()">
+        <label>{{ '3-digit code' | translate }}<input [(ngModel)]="editCode" name="editCode" maxlength="3" inputmode="numeric" required></label>
+        <label>{{ 'Item name' | translate }}<input [(ngModel)]="editName" name="editName" required></label>
+        <label>{{ 'Category' | translate }}<select [(ngModel)]="editCategory" name="editCategory"><option>Plumbing</option><option>Electrical</option><option>Fasteners</option><option>Tools</option></select></label>
+        <label>{{ 'Unit' | translate }}<select [(ngModel)]="editUnit" name="editUnit"><option>Pcs</option><option>Mtr</option><option>Kg</option><option>Box</option></select></label>
+        <label>{{ 'Cost price ₹' | translate }}<input type="number" min="0" [(ngModel)]="editCost" name="editCost" required></label>
+        <label>{{ 'Selling price ₹' | translate }}<input type="number" min="0.01" [(ngModel)]="editPrice" name="editPrice" required></label>
+        <label>{{ 'Current stock' | translate }}<input type="number" min="0" [(ngModel)]="editStock" name="editStock" required></label>
+        <label>{{ 'Minimum stock level' | translate }}<input type="number" min="0" [(ngModel)]="editMinStock" name="editMinStock" required></label>
+        <div class="modal-actions"><button class="button button-secondary" type="button" (click)="editingItem.set(null)">{{ 'Cancel' | translate }}</button><button class="button button-primary" type="submit">{{ 'Save changes' | translate }}</button></div>
+      </form>
+    </section>
+  </div>
+}
