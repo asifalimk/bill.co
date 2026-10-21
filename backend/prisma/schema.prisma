@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id             Int      @id @default(autoincrement())
+  code           String   @unique @db.VarChar(3)
+  name           String
+  category       String
+  unit           String
+  purchase_price Float
+  selling_price  Float
+  stock_qty      Int      @default(0)
+  min_stock_level Int     @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  invoiceItems   InvoiceItem[]
+  purchaseLines  PurchaseLine[]
+
+  @@index([code], name: "idx_item_code")
+}
+
+model Customer {
+  id             Int      @id @default(autoincrement())
+  name           String
+  phone          String   @unique
+  address        String?
+  gstin          String?
+  credit_balance Float    @default(0)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  invoices       Invoice[]
+
+  @@index([phone], name: "idx_customer_phone")
+}
+
+model Vendor {
+  id             Int      @id @default(autoincrement())
+  name           String
+  company_name   String
+  phone          String
+  email          String?
+  address        String?
+  gstin          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  purchases      Purchase[]
+}
+
+model Purchase {
+  id             Int           @id @default(autoincrement())
+  vendor_id      Int
+  invoice_no     String
+  purchase_date  DateTime      @default(now())
+  notes          String?
+  vendor         Vendor        @relation(fields: [vendor_id], references: [id])
+  lines          PurchaseLine[]
+
+  @@index([vendor_id])
+  @@index([invoice_no])
+}
+
+model PurchaseLine {
+  id             Int      @id @default(autoincrement())
+  purchase_id    Int
+  item_id        Int
+  quantity       Int
+  unit_cost      Float
+  selling_price  Float
+  created_at     DateTime @default(now())
+
+  purchase       Purchase @relation(fields: [purchase_id], references: [id])
+  item           Item     @relation(fields: [item_id], references: [id])
+
+  @@index([purchase_id])
+  @@index([item_id])
+}
+
+model Invoice {
+  id             Int            @id @default(autoincrement())
+  invoice_no     String         @unique
+  customer_id    Int?
+  payment_type   String
+  site_note      String?
+  gross_amount   Float
+  total_discounts Float
+  total_cost     Float
+  net_amount     Float
+  net_profit     Float
+  created_at     DateTime       @default(now())
+  customer       Customer?      @relation(fields: [customer_id], references: [id])
+  items          InvoiceItem[]
+
+  @@index([created_at])
+  @@index([customer_id])
+}
+
+model InvoiceItem {
+  id             Int      @id @default(autoincrement())
+  invoice_id     Int
+  item_id        Int
+  code           String
+  name           String
+  unit           String
+  quantity       Int
+  purchase_price Float
+  selling_price  Float
+  line_discount  Float
+  line_total     Float
+  line_net_profit Float
+  created_at     DateTime @default(now())
+
+  invoice        Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  item           Item    @relation(fields: [item_id], references: [id])
+
+  @@index([invoice_id])
+  @@index([item_id])
+}
+
+model CompanyProfile {
+  id                    Int      @id @default(autoincrement())
+  store_name            String
+  tagline               String
+  phone_primary         String
+  address_line1         String
+  city                  String
+  state                 String
+  pincode               String
+  gstin                 String
+  terms_and_conditions  String
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+}

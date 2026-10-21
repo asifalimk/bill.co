@@ -13,14 +13,28 @@ import { PurchasesComponent } from './components/purchases.component';
 import { SalesReturnComponent } from './components/sales-return.component';
 import { InvoiceHistoryComponent } from './components/invoice-history.component';
 import { CustomersComponent } from './components/customers.component';
+import { VendorsComponent } from './components/vendors.component';
 import { CustomerService } from './customer.service';
+import { VendorService } from './vendor.service';
+import { CompanyProfileService } from './company-profile.service';
+import { Vendor } from './models';
+import { SettingsComponent } from './components/settings.component';
 
-type ViewName = 'billing' | 'inventory' | 'purchases' | 'returns' | 'invoices' | 'customers';
+type ViewName = 'billing' | 'inventory' | 'purchases' | 'returns' | 'invoices' | 'customers' | 'vendors' | 'settings';
 
 interface PurchaseLine {
   item: Item;
   quantity: number;
-  unitCost: number;
+  purchaseCost: number;
+  sellingPrice: number;
+}
+
+interface PurchaseHistoryEntry {
+  invoiceNo: string;
+  vendorId: number | null;
+  vendorName: string;
+  vendorCompany: string;
+  date: string;
 }
 
 interface ReturnLine {
@@ -34,7 +48,7 @@ interface ReturnLine {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslationPipe, PosCounterComponent, InventoryComponent, PurchasesComponent, SalesReturnComponent, InvoiceHistoryComponent, CustomersComponent],
+  imports: [CommonModule, FormsModule, TranslationPipe, PosCounterComponent, InventoryComponent, PurchasesComponent, SalesReturnComponent, InvoiceHistoryComponent, CustomersComponent, VendorsComponent, SettingsComponent],
   templateUrl: './app.component.html'
 })
 export class AppComponent implements AfterViewInit {
@@ -42,8 +56,11 @@ export class AppComponent implements AfterViewInit {
   readonly billing = inject(BillingService);
   readonly inventory = inject(InventoryService);
   readonly customerService = inject(CustomerService);
+  readonly vendorService = inject(VendorService);
+  readonly companyProfileService = inject(CompanyProfileService);
   readonly theme = inject(ThemeService);
   readonly translations = inject(TranslationService);
+  readonly profile = this.companyProfileService.profile;
   readonly viewModel = this;
   readonly activeView = signal<ViewName>('billing');
   readonly query = signal('');
@@ -91,10 +108,11 @@ export class AppComponent implements AfterViewInit {
   });
   readonly savedReceipts = this.billing.completedInvoices;
   readonly purchaseLines = signal<PurchaseLine[]>([]);
-  readonly purchaseHistory = signal<string[]>([]);
+  readonly purchaseHistory = signal<PurchaseHistoryEntry[]>([]);
   readonly purchaseCode = signal('');
   readonly purchaseQuantity = signal(1);
   readonly purchaseUnitCost = signal(0);
+  readonly purchaseSellingPrice = signal(0);
   readonly returnInvoiceQuery = signal('');
   readonly selectedReturnReceipt = signal<Receipt | null>(null);
   readonly returnLines = signal<ReturnLine[]>([]);
@@ -110,11 +128,17 @@ export class AppComponent implements AfterViewInit {
   customerName = '';
   customerPhone = '';
   selectedCustomerId: number | null = null;
+  siteNote = '';
   quickCustomerOpen = false;
   quickCustomerAddress = '';
   quickCustomerGstin = '';
+  selectedVendorId: number | null = null;
   vendorName = '';
   vendorInvoice = '';
+  quickVendorCompanyName = '';
+  quickVendorContactName = '';
+  quickVendorPhone = '';
+  quickVendorGstin = '';
   purchaseDate = new Date().toISOString().slice(0, 10);
   newItemCode = '';
   newItemName = '';
@@ -127,7 +151,7 @@ export class AppComponent implements AfterViewInit {
 
   ngAfterViewInit(): void {
     const initialView = this.viewFromPath(window.location.pathname);
-    if (initialView && (!['inventory', 'purchases', 'returns'].includes(initialView) || this.auth.isAdmin())) {
+    if (initialView && (!['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(initialView) || this.auth.isAdmin())) {
       this.activeView.set(initialView);
     }
     this.focusSearch();
@@ -149,6 +173,11 @@ export class AppComponent implements AfterViewInit {
       return;
     }
     if (!this.auth.user()) {
+      return;
+    }
+    if ((event.key === 'F3' || (event.ctrlKey && event.key.toLowerCase() === 'n')) && this.activeView() === 'billing') {
+      event.preventDefault();
+      setTimeout(() => document.getElementById('site-note')?.focus());
       return;
     }
     if (event.key === 'F5' && this.activeView() === 'billing' && this.billing.lines().length) {
@@ -205,8 +234,8 @@ export class AppComponent implements AfterViewInit {
   }
 
   navigate(view: ViewName): void {
-    if (['inventory', 'purchases', 'returns'].includes(view) && !this.auth.isAdmin()) {
-      this.notify('Inventory, purchases, and returns are available to admins only.');
+    if (['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(view) && !this.auth.isAdmin()) {
+      this.notify('Inventory, purchases, returns, and settings are available to admins only.');
       return;
     }
     this.activeView.set(view);
@@ -219,7 +248,7 @@ export class AppComponent implements AfterViewInit {
   @HostListener('window:popstate')
   restoreViewFromPath(): void {
     const view = this.viewFromPath(window.location.pathname);
-    if (view && (!['inventory', 'purchases', 'returns'].includes(view) || this.auth.isAdmin())) {
+    if (view && (!['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(view) || this.auth.isAdmin())) {
       this.activeView.set(view);
     }
   }
@@ -332,6 +361,20 @@ export class AppComponent implements AfterViewInit {
     this.customerPhone = customer.phone;
   }
 
+  selectCustomerById(customerId: number | null): void {
+    this.selectedCustomerId = customerId;
+    if (customerId === null) {
+      this.customerName = '';
+      this.customerPhone = '';
+      return;
+    }
+    const customer = this.customerService.findById(customerId);
+    if (customer) {
+      this.customerName = customer.name;
+      this.customerPhone = customer.phone;
+    }
+  }
+
   createCustomerFromPos(): void {
     try {
       const customer = this.customerService.add({
@@ -348,6 +391,10 @@ export class AppComponent implements AfterViewInit {
     } catch (error) {
       this.notify(this.errorMessage(error));
     }
+  }
+
+  selectedPurchaseVendor(): Vendor | undefined {
+    return this.selectedVendorId !== null ? this.vendorService.findById(this.selectedVendorId) : undefined;
   }
 
   commitStagedItem(): void {
@@ -457,6 +504,7 @@ export class AppComponent implements AfterViewInit {
     this.billing.paymentType.set(invoice.paymentType);
     this.customerName = invoice.customerName;
     this.customerPhone = invoice.customerPhone;
+    this.siteNote = invoice.site_note ?? '';
     this.selectedCustomerId = invoice.customerId ?? this.customerService.findByPhone(invoice.customerPhone)?.id ?? null;
     this.activeSelectedItem.set(null);
     this.query.set('');
@@ -525,6 +573,13 @@ export class AppComponent implements AfterViewInit {
       }
       const lines = this.billing.lines().map(line => ({ ...line, item: { ...line.item } }));
       quantityDeltas.forEach((delta, itemId) => { if (delta) this.inventory.adjustStock(itemId, -delta); });
+      const totalCost = lines.reduce((total, line) => total + (line.item.purchase_price * line.quantity), 0);
+      const grossAmount = lines.reduce((total, line) => total + (line.item.selling_price * line.quantity), 0);
+      const lineDiscountTotal = lines.reduce((total, line) => total + line.discount, 0);
+      const overallBillDiscount = Math.min(this.billing.billDiscount(), this.billing.subtotal());
+      const totalDiscounts = lineDiscountTotal + overallBillDiscount;
+      const netAmount = Math.max(0, grossAmount - totalDiscounts);
+      const netProfit = netAmount - totalCost;
       const newReceipt: Receipt = {
         ...(invoiceBeingEdited ?? {}),
         invoiceNo: invoiceBeingEdited?.invoiceNo ?? `INV-${String(Date.now()).slice(-7)}`,
@@ -533,11 +588,18 @@ export class AppComponent implements AfterViewInit {
         paymentType: payment,
         customerName: customer?.name ?? this.customerName.trim(),
         customerPhone: customer?.phone ?? phone,
+        customerGstin: customer?.gstin ?? (this.quickCustomerGstin.trim() || undefined),
         customerId: customer?.id,
+        site_note: this.siteNote.trim(),
         lines,
         subtotal: this.billing.subtotal(),
-        discount: Math.min(this.billing.billDiscount(), this.billing.subtotal()),
-        total: this.billing.total(),
+        discount: overallBillDiscount,
+        total: netAmount,
+        total_cost: totalCost,
+        gross_amount: grossAmount,
+        total_discounts: totalDiscounts,
+        net_amount: netAmount,
+        net_profit: netProfit,
         isEdited: Boolean(invoiceBeingEdited),
         ...(invoiceBeingEdited ? {
           editedAt: new Date(),
@@ -572,6 +634,7 @@ export class AppComponent implements AfterViewInit {
       this.customerName = '';
       this.customerPhone = '';
       this.selectedCustomerId = null;
+      this.siteNote = '';
       this.quickCustomerOpen = false;
     } catch (error) {
       this.notify(this.errorMessage(error));
@@ -589,6 +652,7 @@ export class AppComponent implements AfterViewInit {
     this.customerName = '';
     this.customerPhone = '';
     this.selectedCustomerId = null;
+    this.siteNote = '';
     this.quickCustomerOpen = false;
     this.alert.set('');
     setTimeout(() => this.focusSearch());
@@ -634,6 +698,37 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
+  purchaseLineTotal(line: PurchaseLine): number {
+    return line.quantity * line.purchaseCost;
+  }
+
+  purchaseInvoiceTotal(): number {
+    return this.purchaseLines().reduce((total, line) => total + this.purchaseLineTotal(line), 0);
+  }
+
+  updatePurchaseLine(index: number, field: 'quantity' | 'purchaseCost' | 'sellingPrice', value: number): void {
+    const line = this.purchaseLines()[index];
+    if (!line) {
+      return;
+    }
+    const parsedValue = Number(value);
+    if (!Number.isFinite(parsedValue)) {
+      return;
+    }
+    this.purchaseLines.update(lines => lines.map((current, lineIndex) => {
+      if (lineIndex !== index) {
+        return current;
+      }
+      if (field === 'quantity') {
+        return { ...current, quantity: parsedValue > 0 ? parsedValue : 1 };
+      }
+      if (field === 'purchaseCost') {
+        return { ...current, purchaseCost: Math.max(0, parsedValue) };
+      }
+      return { ...current, sellingPrice: Math.max(0, parsedValue) };
+    }));
+  }
+
   stagePurchaseItem(): void {
     const text = this.purchaseCode().trim();
     const item = this.inventory.findByCode(text) ??
@@ -642,38 +737,65 @@ export class AppComponent implements AfterViewInit {
       this.notify('Choose an existing item by its code or name.');
       return;
     }
-    if (!Number.isFinite(this.purchaseQuantity()) || this.purchaseQuantity() <= 0 ||
-        !Number.isFinite(this.purchaseUnitCost()) || this.purchaseUnitCost() < 0) {
-      this.notify('Purchase quantity must be positive and unit cost cannot be negative.');
+    const quantity = Number(this.purchaseQuantity());
+    const purchaseCost = Number(this.purchaseUnitCost());
+    const sellingPrice = Number(this.purchaseSellingPrice());
+    if (!Number.isFinite(quantity) || quantity <= 0 ||
+        !Number.isFinite(purchaseCost) || purchaseCost < 0 ||
+        !Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      this.notify('Purchase quantity must be positive, purchase cost cannot be negative, and selling price cannot be negative.');
       return;
     }
     this.purchaseLines.update(lines => [...lines, {
       item,
-      quantity: Number(this.purchaseQuantity()),
-      unitCost: Number(this.purchaseUnitCost())
+      quantity,
+      purchaseCost,
+      sellingPrice
     }]);
     this.purchaseCode.set('');
     this.purchaseQuantity.set(1);
     this.purchaseUnitCost.set(item.purchase_price);
+    this.purchaseSellingPrice.set(item.selling_price);
   }
 
   selectPurchaseItem(item: Item): void {
     this.purchaseCode.set(item.code);
     this.purchaseUnitCost.set(item.purchase_price);
+    this.purchaseSellingPrice.set(item.selling_price);
   }
 
   savePurchase(): void {
-    if (!this.vendorName.trim() || !this.vendorInvoice.trim() || !this.purchaseLines().length) {
+    const vendor = this.selectedVendorId !== null ? this.vendorService.findById(this.selectedVendorId) : undefined;
+    if (!vendor || !this.vendorInvoice.trim() || !this.purchaseLines().length) {
       this.notify('Enter vendor details and add at least one purchase item.');
       return;
     }
     try {
-      this.purchaseLines().forEach(line => this.inventory.adjustStock(line.item.id, line.quantity));
-      this.purchaseHistory.update(history => [`${this.vendorInvoice.trim()} · ${this.vendorName.trim()} · ${this.purchaseDate}`, ...history]);
+      this.purchaseLines().forEach(line => {
+        this.inventory.adjustStock(line.item.id, line.quantity);
+        this.inventory.updateItem(line.item.id, {
+          ...line.item,
+          purchase_price: Number(line.purchaseCost),
+          selling_price: Number(line.sellingPrice),
+          stock_qty: line.item.stock_qty + line.quantity
+        });
+      });
+      this.purchaseHistory.update(history => [{
+        invoiceNo: this.vendorInvoice.trim(),
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        vendorCompany: vendor.company_name,
+        date: this.purchaseDate
+      }, ...history]);
       this.purchaseLines.set([]);
+      this.purchaseCode.set('');
+      this.purchaseQuantity.set(1);
+      this.purchaseUnitCost.set(0);
+      this.purchaseSellingPrice.set(0);
       this.vendorName = '';
       this.vendorInvoice = '';
-      this.notify('Purchase saved and stock updated.');
+      this.selectedVendorId = null;
+      this.notify('Purchase saved and item prices updated.');
     } catch (error) {
       this.notify(this.errorMessage(error));
     }
@@ -783,7 +905,7 @@ export class AppComponent implements AfterViewInit {
   private viewFromPath(path: string): ViewName | null {
     const route = path.replace(/\/+$/, '') || '/';
     if (route === '/') return 'billing';
-    if (route === '/inventory' || route === '/purchases' || route === '/returns' || route === '/invoices' || route === '/customers') {
+    if (route === '/inventory' || route === '/purchases' || route === '/returns' || route === '/invoices' || route === '/customers' || route === '/vendors' || route === '/settings') {
       return route.slice(1) as ViewName;
     }
     return null;

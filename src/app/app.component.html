@@ -1,8 +1,8 @@
 @if (!auth.user()) {
   <main class="login-shell">
     <section class="login-card panel">
-      <div class="brand-mark">H</div>
-      <p class="eyebrow">{{ 'HARDWARE COUNTER' | translate }}</p>
+      <div class="brand-mark">{{ profile().short_name || 'H' }}</div>
+      <p class="eyebrow">{{ profile().store_name }}</p>
       <h1>{{ 'Welcome back' | translate }}</h1>
       <p class="muted">{{ 'Sign in to open your point-of-sale workspace.' | translate }}</p>
       <form class="login-form" (ngSubmit)="login()">
@@ -18,7 +18,7 @@
 } @else {
   <div class="app-shell">
     <header class="topbar no-print">
-      <a class="brand" href="/" (click)="$event.preventDefault(); navigate('billing')"><span class="brand-mark small">H</span><span><strong>HARDWARE</strong><small>COUNTER POS</small></span></a>
+      <a class="brand" href="/" (click)="$event.preventDefault(); navigate('billing')"><span class="brand-mark small">{{ profile().short_name || 'H' }}</span><span><strong>{{ profile().store_name }}</strong><small>{{ profile().tagline }}</small></span></a>
       <div class="topbar-right">
         <button class="theme-toggle" type="button" [attr.aria-label]="(theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme') | translate" [attr.title]="(theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme') | translate" [attr.aria-pressed]="theme.theme() === 'dark'" (click)="theme.toggle()"><span aria-hidden="true">{{ theme.theme() === 'dark' ? '☀' : '☾' }}</span></button>
         <button class="language-toggle" type="button" [attr.aria-label]="'Switch language' | translate" [attr.aria-pressed]="translations.currentLang() === 'ml'" (click)="translations.toggleLanguage()">{{ translations.currentLang() === 'en' ? 'EN' : 'ML' }}</button>
@@ -35,7 +35,9 @@
           <p class="nav-caption nav-gap">{{ 'MANAGEMENT' | translate }}</p>
           <button class="nav-item" [class.active]="activeView() === 'inventory'" type="button" (click)="navigate('inventory')"><span class="nav-icon">▤</span> {{ 'Inventory' | translate }}</button>
           <button class="nav-item" [class.active]="activeView() === 'purchases'" type="button" (click)="navigate('purchases')"><span class="nav-icon">↓</span> {{ 'Stock In' | translate }}</button>
+          <button class="nav-item" [class.active]="activeView() === 'vendors'" type="button" (click)="navigate('vendors')"><span class="nav-icon">▣</span> {{ 'Vendors' | translate }}</button>
           <button class="nav-item" [class.active]="activeView() === 'returns'" type="button" (click)="navigate('returns')"><span class="nav-icon">↶</span> {{ 'Sales Returns' | translate }}</button>
+          <button class="nav-item" [class.active]="activeView() === 'settings'" type="button" (click)="navigate('settings')"><span class="nav-icon">⚙</span> {{ 'Settings' | translate }}</button>
         }
         <div class="sidebar-footer"><span class="status-dot"></span><span><strong>{{ 'Offline mode' | translate }}</strong><small>{{ 'Data stays in this session' | translate }}</small></span></div>
       </aside>
@@ -44,7 +46,9 @@
         @if (activeView() === 'billing') { <app-pos-counter [vm]="viewModel" /> }
         @if (activeView() === 'inventory') { <app-inventory [vm]="viewModel" (notify)="notify($event)" /> }
         @if (activeView() === 'purchases') { <app-purchases [vm]="viewModel" /> }
+        @if (activeView() === 'vendors') { <app-vendors /> }
         @if (activeView() === 'returns') { <app-sales-return [vm]="viewModel" /> }
+        @if (activeView() === 'settings') { <app-settings /> }
         @if (activeView() === 'invoices') { <app-invoice-history (printInvoice)="receipt.set($event)" (editInvoice)="editInvoice($event)" /> }
         @if (activeView() === 'customers') { <app-customers /> }
       </main>
@@ -76,10 +80,63 @@
     <section class="receipt-dialog panel" role="dialog" aria-modal="true" aria-labelledby="receipt-title" (click)="$event.stopPropagation()">
       <div class="receipt-toolbar no-print"><span>{{ 'SALE COMPLETE' | translate }}</span><button class="remove-button" type="button" [attr.aria-label]="'Close receipt' | translate" (click)="closeReceipt()">×</button></div>
       <div class="thermal-receipt">
-        <div class="receipt-brand"><span class="brand-mark">H</span><strong id="receipt-title">{{ 'HARDWARE COUNTER' | translate }}</strong><small>{{ 'Retail hardware & supplies' | translate }}</small></div>
-        <div class="receipt-meta"><span>{{ 'Invoice:' | translate }} {{ currentReceipt.invoiceNo }}</span><span>{{ currentReceipt.date | date:'medium' }}</span><span>{{ 'Cashier:' | translate }} {{ currentReceipt.cashier }}</span><span>{{ 'Payment:' | translate }} {{ currentReceipt.paymentType }}</span>@if (currentReceipt.customerName || currentReceipt.customerPhone) { <span>{{ 'Customer:' | translate }} {{ currentReceipt.customerName }} · {{ currentReceipt.customerPhone }}</span> }</div>
-        <div class="receipt-rule"></div><div class="receipt-items">@for (line of currentReceipt.lines; track line.item.id) { <div class="receipt-item"><strong>{{ line.item.name }}</strong><span>{{ line.quantity }} × ₹{{ line.item.selling_price | number:'1.2-2' }} @if (line.discount) { <small>− disc ₹{{ line.discount | number:'1.2-2' }}</small> } <b>₹{{ lineTotal(line) | number:'1.2-2' }}</b></span></div> }</div>
-        <div class="receipt-rule"></div><div class="receipt-total"><span>{{ 'Subtotal' | translate }}</span><strong>₹{{ currentReceipt.subtotal | number:'1.2-2' }}</strong></div><div class="receipt-total"><span>{{ 'Bill discount' | translate }}</span><strong>− ₹{{ currentReceipt.discount | number:'1.2-2' }}</strong></div><div class="receipt-total grand-total"><span>{{ 'GRAND TOTAL' | translate }}</span><strong>₹{{ currentReceipt.total | number:'1.2-2' }}</strong></div><p class="receipt-thanks">{{ 'Thank you for your business!' | translate }}</p>
+        <div class="receipt-header-box">
+          <div class="receipt-brand"><span class="brand-mark">{{ profile().short_name || 'H' }}</span><strong id="receipt-title">{{ profile().store_name }}</strong><small>{{ profile().tagline }}</small></div>
+          <div class="receipt-contact-list">
+            @if (profile().phone) { <span>☎ {{ profile().phone }}</span> }
+            @if (profile().address) { <span>📍 {{ profile().address }}</span> }
+            @if (profile().gstin) { <span>GSTIN: {{ profile().gstin }}</span> }
+          </div>
+        </div>
+        <div class="receipt-meta-grid">
+          <div class="meta-block"><span>{{ 'Invoice' | translate }}</span><strong>{{ currentReceipt.invoiceNo }}</strong></div>
+          <div class="meta-block"><span>{{ 'Date' | translate }}</span><strong>{{ currentReceipt.date | date:'dd/MM/yyyy' }}</strong></div>
+          <div class="meta-block"><span>{{ 'Customer' | translate }}</span><strong>{{ currentReceipt.customerName || 'Walk-in' }}</strong></div>
+          <div class="meta-block"><span>{{ 'Payment' | translate }}</span><strong>{{ currentReceipt.paymentType }}</strong></div>
+          @if (currentReceipt.customerPhone) { <div class="meta-block wide"><span>{{ 'Phone' | translate }}</span><strong>{{ currentReceipt.customerPhone }}</strong></div> }
+          @if (currentReceipt.site_note) { <div class="meta-block wide"><span>{{ 'Site / Notes' | translate }}</span><strong>{{ currentReceipt.site_note }}</strong></div> }
+        </div>
+        <div class="receipt-rule"></div>
+        <div class="receipt-items">
+          <table class="receipt-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{{ 'Item' | translate }}</th>
+                <th>{{ 'Qty' | translate }}</th>
+                <th>{{ 'Rate' | translate }}</th>
+                <th>{{ 'Disc' | translate }}</th>
+                <th>{{ 'Total' | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of currentReceipt.lines; track line.item.id; let index = $index) {
+                <tr class="receipt-row">
+                  <td>{{ index + 1 }}</td>
+                  <td><strong>{{ line.item.name }}</strong><small>{{ line.item.code }}</small></td>
+                  <td>{{ line.quantity }}</td>
+                  <td>₹{{ line.item.selling_price | number:'1.2-2' }}</td>
+                  <td>₹{{ line.discount | number:'1.2-2' }}</td>
+                  <td>₹{{ lineTotal(line) | number:'1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="receipt-rule"></div>
+        <div class="receipt-summary">
+          <div class="receipt-total"><span>{{ 'Subtotal' | translate }}</span><strong>₹{{ currentReceipt.subtotal | number:'1.2-2' }}</strong></div>
+          <div class="receipt-total"><span>{{ 'Bill discount' | translate }}</span><strong>− ₹{{ currentReceipt.discount | number:'1.2-2' }}</strong></div>
+          @if (auth.isAdmin() && (currentReceipt.net_profit ?? 0) > 0) {
+            <div class="receipt-total"><span>{{ 'Net Profit' | translate }}</span><strong>₹{{ (currentReceipt.net_profit ?? 0) | number:'1.2-2' }}</strong></div>
+          }
+          <div class="receipt-total grand-total"><span>{{ 'GRAND TOTAL' | translate }}</span><strong>₹{{ currentReceipt.total | number:'1.2-2' }}</strong></div>
+        </div>
+        <div class="receipt-footer">
+          <div class="signature-box"><span>{{ 'Cashier' | translate }}</span><strong>{{ currentReceipt.cashier }}</strong></div>
+          <div class="signature-box"><span>{{ 'Signature' | translate }}</span><strong>____________</strong></div>
+        </div>
+        <p class="receipt-thanks">{{ profile().footer_note || ('Thank you for your business!' | translate) }}</p>
       </div>
       <div class="receipt-actions no-print"><button class="button button-secondary" type="button" (click)="closeReceipt()">{{ 'Done' | translate }}</button><button class="button button-primary" type="button" (click)="printReceipt()">{{ 'Print receipt' | translate }}</button></div>
     </section>

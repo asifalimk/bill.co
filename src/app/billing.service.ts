@@ -7,12 +7,46 @@ export class BillingService {
   readonly completedInvoices = signal<Receipt[]>([]);
   readonly billDiscount = signal(0);
   readonly paymentType = signal<PaymentType>('CASH');
+  readonly grossAmount = computed(() => this.lines().reduce(
+    (total, line) => total + (line.item.selling_price * line.quantity),
+    0
+  ));
+  readonly totalLineDiscounts = computed(() => this.lines().reduce(
+    (total, line) => total + line.discount,
+    0
+  ));
+  readonly totalCost = computed(() => this.lines().reduce(
+    (total, line) => total + (line.item.purchase_price * line.quantity),
+    0
+  ));
   readonly subtotal = computed(() => this.lines().reduce(
     (total, line) => total + Math.max(0, line.quantity * line.item.selling_price - line.discount),
     0
   ));
+  readonly totalDiscounts = computed(() => this.totalLineDiscounts() + this.billDiscount());
+  readonly netAmount = computed(() => Math.max(0, this.grossAmount() - this.totalDiscounts()));
+  readonly netProfit = computed(() => this.netAmount() - this.totalCost());
   readonly itemCount = computed(() => this.lines().reduce((total, line) => total + line.quantity, 0));
-  readonly total = computed(() => Math.max(0, this.subtotal() - this.billDiscount()));
+  readonly total = computed(() => this.netAmount());
+
+  lineNetProfit(line: CartLine): number {
+    return (line.item.selling_price * line.quantity) - line.discount - (line.item.purchase_price * line.quantity);
+  }
+
+  invoiceNetProfit(invoice: Receipt): number {
+    const lineProfit = invoice.lines.reduce((total, line) => total + this.lineNetProfit(line), 0);
+    return lineProfit - (invoice.discount ?? 0);
+  }
+
+  invoiceMetrics(invoice: Receipt): { total_cost: number; gross_amount: number; total_discounts: number; net_amount: number; net_profit: number } {
+    const grossAmount = invoice.lines.reduce((total, line) => total + (line.item.selling_price * line.quantity), 0);
+    const totalCost = invoice.lines.reduce((total, line) => total + (line.item.purchase_price * line.quantity), 0);
+    const totalDiscounts = invoice.lines.reduce((total, line) => total + line.discount, 0) + (invoice.discount ?? 0);
+    const netAmount = Math.max(0, grossAmount - totalDiscounts);
+    const netProfit = netAmount - totalCost;
+
+    return { total_cost: totalCost, gross_amount: grossAmount, total_discounts: totalDiscounts, net_amount: netAmount, net_profit: netProfit };
+  }
 
   add(item: Item, quantity: number, discount: number): void {
     if (!Number.isFinite(quantity) || quantity <= 0) {

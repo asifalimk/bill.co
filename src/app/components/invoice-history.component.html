@@ -2,30 +2,55 @@
   <div><p class="eyebrow">{{ 'SALES LEDGER' | translate }}</p><h1>{{ 'Invoice history' | translate }}</h1><p class="muted">{{ 'Review completed sales and print invoices.' | translate }}</p></div>
 </section>
 <section class="invoice-kpis no-print" aria-label="Today's invoice summary">
-  <article class="panel invoice-kpi"><span>{{ 'Total sales count' | translate }}</span><strong>{{ todayInvoices().length }}</strong><small>{{ 'Today' | translate }}</small></article>
-  <article class="panel invoice-kpi"><span>{{ 'Total cash collected' | translate }}</span><strong>₹{{ totalCashCollected() | number:'1.2-2' }}</strong><small>{{ 'Today' | translate }}</small></article>
-  <article class="panel invoice-kpi"><span>{{ 'Total credit outstanding' | translate }}</span><strong>₹{{ totalCreditOutstanding() | number:'1.2-2' }}</strong><small>{{ 'Today' | translate }}</small></article>
+  <article class="panel invoice-kpi"><span>{{ 'Total sales count' | translate }}</span><strong>{{ filteredInvoices().length }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  <article class="panel invoice-kpi"><span>{{ 'Total Revenue' | translate }}</span><strong>₹{{ totalRevenue() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  <article class="panel invoice-kpi"><span>{{ 'Total Discounts Offered' | translate }}</span><strong>₹{{ totalDiscountsOffered() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  <article class="panel invoice-kpi"><span>{{ 'Total Item Costs' | translate }}</span><strong>₹{{ totalItemCosts() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  @if (auth.isAdmin()) {
+    <article class="panel invoice-kpi"><span>{{ 'Net Profit Earned' | translate }}</span><strong>₹{{ netProfitEarned() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  }
+  <article class="panel invoice-kpi"><span>{{ 'Total cash collected' | translate }}</span><strong>₹{{ totalCashCollected() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
+  <article class="panel invoice-kpi"><span>{{ 'Total credit outstanding' | translate }}</span><strong>₹{{ totalCreditOutstanding() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>
 </section>
 <section class="panel management-panel no-print">
   <div class="management-toolbar invoice-toolbar">
     <strong>{{ filteredInvoices().length }} {{ 'invoices' | translate }}</strong>
     <label class="toolbar-search"><span>⌕</span><input [value]="search()" (input)="search.set(($any($event.target)).value)" [placeholder]="'Search invoice, customer, or phone' | translate" [attr.aria-label]="'Search invoices' | translate"></label>
+    <label class="invoice-filter">{{ 'Date range' | translate }}
+      <select [ngModel]="datePreset()" (ngModelChange)="onDatePresetChange($event)">
+        <option value="ALL">{{ 'All Time' | translate }}</option>
+        <option value="TODAY">{{ 'Today' | translate }}</option>
+        <option value="THIS_MONTH">{{ 'This Month' | translate }}</option>
+        <option value="LAST_MONTH">{{ 'Last Month' | translate }}</option>
+        <option value="LAST_6_MONTHS">{{ 'Last 6 Months' | translate }}</option>
+        <option value="CUSTOM">{{ 'Custom Range' | translate }}</option>
+      </select>
+    </label>
     <label class="invoice-filter">{{ 'Payment type' | translate }}
       <select [ngModel]="paymentFilter()" (ngModelChange)="paymentFilter.set($event)">
         <option value="ALL">{{ 'ALL' | translate }}</option><option value="CASH">{{ 'CASH' | translate }}</option><option value="CREDIT">{{ 'CREDIT' | translate }}</option>
       </select>
     </label>
   </div>
+  @if (datePreset() === 'CUSTOM') {
+    <div class="management-toolbar invoice-toolbar" style="margin-top: 12px;">
+      <label class="invoice-filter">{{ 'Start date' | translate }}
+        <input type="date" [ngModel]="startDate()" (ngModelChange)="startDate.set($event)">
+      </label>
+      <label class="invoice-filter">{{ 'End date' | translate }}
+        <input type="date" [ngModel]="endDate()" (ngModelChange)="endDate.set($event)">
+      </label>
+    </div>
+  }
   <div class="table-wrap">
     <table class="data-table invoice-table">
-      <thead><tr><th>{{ 'Invoice No' | translate }}</th><th>{{ 'Date & Time' | translate }}</th><th>{{ 'Customer Name & Phone' | translate }}</th><th class="align-right">{{ 'Total Items' | translate }}</th><th class="align-right">{{ 'Grand Total' | translate }}</th><th>{{ 'Payment Type' | translate }}</th><th>{{ 'Cashier Name' | translate }}</th><th>{{ 'Actions' | translate }}</th></tr></thead>
+      <thead><tr><th>{{ 'Invoice No' | translate }}</th><th>{{ 'Date & Time' | translate }}</th><th>{{ 'Customer Name & Phone' | translate }}</th><th class="align-right">{{ 'Total Items' | translate }}</th><th class="align-right">{{ 'Grand Total' | translate }}</th>@if (auth.isAdmin()) { <th class="align-right">{{ 'Net Profit' | translate }}</th> }<th>{{ 'Payment Type' | translate }}</th><th>{{ 'Cashier Name' | translate }}</th><th>{{ 'Actions' | translate }}</th></tr></thead>
       <tbody>
         @for (invoice of filteredInvoices(); track invoice.invoiceNo) {
           <tr class="invoice-row" tabindex="0" (click)="selectedInvoice.set(invoice)" (keydown.enter)="selectedInvoice.set(invoice)" (keydown.space)="$event.preventDefault(); selectedInvoice.set(invoice)">
             <td><strong>{{ invoice.invoiceNo }}</strong>@if (invoice.isEdited) { <small class="invoice-edited">{{ 'Edited' | translate }}</small> }</td><td>{{ invoice.date | date:'medium' }}</td>
             <td>{{ invoice.customerName || '—' }}<small class="invoice-phone">{{ invoice.customerPhone || '—' }}</small></td>
-            <td class="align-right">{{ totalItems(invoice) }}</td><td class="align-right strong">₹{{ invoice.total | number:'1.2-2' }}</td>
-            <td><span class="category-chip">{{ invoice.paymentType }}</span></td><td>{{ invoice.cashier }}</td><td><button class="text-button" type="button" (click)="$event.stopPropagation(); editInvoice.emit(invoice)" (keydown)="$event.stopPropagation()">{{ 'Edit Invoice' | translate }}</button></td>
+            <td class="align-right">{{ totalItems(invoice) }}</td><td class="align-right strong">₹{{ invoice.total | number:'1.2-2' }}</td>@if (auth.isAdmin()) { <td class="align-right strong">₹{{ (invoice.net_profit ?? invoiceProfitValue(invoice)) | number:'1.2-2' }}</td> }<td><span class="category-chip">{{ invoice.paymentType }}</span></td><td>{{ invoice.cashier }}</td><td><button class="text-button" type="button" (click)="$event.stopPropagation(); editInvoice.emit(invoice)" (keydown)="$event.stopPropagation()">{{ 'Edit Invoice' | translate }}</button></td>
           </tr>
         } @empty { <tr><td colspan="8" class="table-empty">{{ 'No invoices match your search.' | translate }}</td></tr> }
       </tbody>
@@ -39,6 +64,8 @@
       <div class="invoice-meta">
         <span><small>{{ 'DATE' | translate }}</small><strong>{{ invoice.date | date:'medium' }}</strong></span>
         <span><small>{{ 'CUSTOMER' | translate }}</small><strong>{{ invoice.customerName || '—' }} · {{ invoice.customerPhone || '—' }}</strong></span>
+        @if (invoice.customerGstin) { <span><small>{{ 'GSTIN' | translate }}</small><strong>{{ invoice.customerGstin }}</strong></span> }
+        @if (invoice.site_note) { <span><small>{{ 'Site / Notes' | translate }}</small><strong>{{ invoice.site_note }}</strong></span> }
         <span><small>{{ 'PAYMENT' | translate }}</small><strong>{{ invoice.paymentType }}</strong></span>
         <span><small>{{ 'CASHIER' | translate }}</small><strong>{{ invoice.cashier }}</strong></span>
         @if (invoice.isEdited && invoice.editedAt) { <span><small>{{ 'LAST EDITED' | translate }}</small><strong>{{ invoice.editedAt | date:'medium' }} · {{ invoice.editedBy }}</strong></span> }
@@ -51,7 +78,7 @@
           }</tbody>
         </table>
       </div>
-      <div class="invoice-detail-totals"><div><span>{{ 'Subtotal' | translate }}</span><strong>₹{{ invoice.subtotal | number:'1.2-2' }}</strong></div><div><span>{{ 'Bill discount' | translate }}</span><strong>− ₹{{ invoice.discount | number:'1.2-2' }}</strong></div><div class="invoice-grand-total"><span>{{ 'Grand Total' | translate }}</span><strong>₹{{ invoice.total | number:'1.2-2' }}</strong></div></div>
+      <div class="invoice-detail-totals"><div><span>{{ 'Subtotal' | translate }}</span><strong>₹{{ invoice.subtotal | number:'1.2-2' }}</strong></div><div><span>{{ 'Bill discount' | translate }}</span><strong>− ₹{{ invoice.discount | number:'1.2-2' }}</strong></div><div><span>{{ 'Total Item Costs' | translate }}</span><strong>₹{{ invoiceItemCostValue(invoice) | number:'1.2-2' }}</strong></div>@if (auth.isAdmin()) { <div class="invoice-grand-total"><span>{{ 'Net Profit' | translate }}</span><strong>₹{{ (invoice.net_profit ?? invoiceProfitValue(invoice)) | number:'1.2-2' }}</strong></div> }<div class="invoice-grand-total"><span>{{ 'Grand Total' | translate }}</span><strong>₹{{ invoice.total | number:'1.2-2' }}</strong></div></div>
       <div class="modal-actions"><button class="button button-secondary" type="button" (click)="selectedInvoice.set(null)">{{ 'Close' | translate }}</button><button class="button button-secondary" type="button" (click)="editSelectedInvoice()">{{ 'Edit Invoice' | translate }}</button><button class="button button-primary" type="button" (click)="printSelectedInvoice()">{{ 'Print Thermal Receipt' | translate }}</button></div>
     </section>
   </div>
