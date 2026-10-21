@@ -1,0 +1,28 @@
+<section class="panel settings-panel">
+  <div class="panel-header">
+    <div>
+      <p class="eyebrow">{{ 'STORE SETTINGS' | translate }}</p>
+      <h2>{{ 'Company profile' | translate }}</h2>
+    </div>
+    <div class="brand-preview">
+      <span class="brand-mark small">{{ initials() }}</span>
+      <div>
+        <strong>{{ profile().store_name }}</strong>
+        <small>{{ profile().tagline }}</small>
+      </div>
+    </div>
+  </div>
+
+  <form class="form-grid settings-form" (ngSubmit)="$event.preventDefault()">
+    <label>{{ 'Store name' | translate }}<input [ngModel]="profile().store_name" (ngModelChange)="updateField('store_name', $event)" name="store_name"></label>
+    <label>{{ 'Short brand' | translate }}<input [ngModel]="profile().short_name" (ngModelChange)="updateField('short_name', $event)" name="short_name" maxlength="2"></label>
+    <label>{{ 'Tagline' | translate }}<input [ngModel]="profile().tagline" (ngModelChange)="updateField('tagline', $event)" name="tagline"></label>
+    <label>{{ 'Phone' | translate }}<input [ngModel]="profile().phone" (ngModelChange)="updateField('phone', $event)" name="phone"></label>
+    <label>{{ 'Email' | translate }}<input [ngModel]="profile().email" (ngModelChange)="updateField('email', $event)" name="email"></label>
+    <label>{{ 'Website' | translate }}<input [ngModel]="profile().website" (ngModelChange)="updateField('website', $event)" name="website"></label>
+    <label class="full-span">{{ 'Address' | translate }}<textarea [ngModel]="profile().address" (ngModelChange)="updateField('address', $event)" name="address" rows="3"></textarea></label>
+    <label>{{ 'GSTIN' | translate }}<input [ngModel]="profile().gstin" (ngModelChange)="updateField('gstin', $event)" name="gstin"></label>
+    <label class="full-span">{{ 'Footer note' | translate }}<input [ngModel]="profile().footer_note" (ngModelChange)="updateField('footer_note', $event)" name="footer_note"></label>
+    <label class="full-span">{{ 'Terms & conditions' | translate }}<textarea [ngModel]="profile().terms" (ngModelChange)="updateField('terms', $event)" name="terms" rows="3"></textarea></label>
+  </form>
+</section>

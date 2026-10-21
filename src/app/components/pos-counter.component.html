@@ -60,16 +60,16 @@
       <button type="button" [class.selected]="vm.billing.paymentType() === 'CREDIT'" (click)="vm.billing.paymentType.set('CREDIT')"><span>◷</span> {{ 'Credit' | translate }}</button>
     </div>
     <div class="customer-fields">
-      <label class="customer-lookup">{{ 'Customer name' | translate }} @if (vm.billing.paymentType() === 'CREDIT') { <span class="required">*</span> }<input id="customer-name" name="customerName" [ngModel]="vm.customerName" (ngModelChange)="vm.updateCustomerLookup($event)" [placeholder]="'Full name or phone' | translate" autocomplete="off" [required]="vm.billing.paymentType() === 'CREDIT'">
-        @if (vm.customerMatches().length) {
-          <span class="customer-suggestions">
-            @for (customer of vm.customerMatches(); track customer.id) {
-              <button type="button" (click)="vm.selectCustomer(customer)"><strong>{{ customer.name }}</strong><small>{{ customer.phone }} · {{ 'Due' | translate }} ₹{{ customer.credit_balance | number:'1.2-2' }}</small></button>
-            }
-          </span>
-        }
+      <label class="customer-lookup">{{ 'Customer name' | translate }} @if (vm.billing.paymentType() === 'CREDIT') { <span class="required">*</span> }
+        <select id="customer-name" name="customerName" [ngModel]="vm.selectedCustomerId" (ngModelChange)="vm.selectCustomerById($event)" [required]="vm.billing.paymentType() === 'CREDIT'">
+          <option [ngValue]="null">-- {{ 'Select Customer' | translate }} --</option>
+          @for (customer of vm.customerService.customers(); track customer.id) {
+            <option [ngValue]="customer.id">{{ customer.name }} ({{ customer.phone }})</option>
+          }
+        </select>
       </label>
       <label>{{ 'Phone number' | translate }} @if (vm.billing.paymentType() === 'CREDIT') { <span class="required">*</span> }<input id="customer-phone" name="customerPhone" [ngModel]="vm.customerPhone" (ngModelChange)="vm.updateCustomerPhone($event)" inputmode="numeric" maxlength="15" [placeholder]="'7–15 digits' | translate" [required]="vm.billing.paymentType() === 'CREDIT'"></label>
+      <label>{{ 'Site / Notes' | translate }}<input id="site-note" name="siteNote" [(ngModel)]="vm.siteNote" [placeholder]="'Site A - Villa Project' | translate" [attr.aria-label]="'Site / Notes' | translate"></label>
     </div>
     <div class="quick-customer-actions"><span>{{ vm.selectedCustomerId !== null ? ('Customer selected' | translate) : ('Customer is optional for cash sales' | translate) }}</span><button class="text-button" type="button" (click)="vm.quickCustomerOpen = !vm.quickCustomerOpen">{{ vm.quickCustomerOpen ? ('Close' | translate) : ('＋ Quick add customer' | translate) }}</button></div>
     @if (vm.quickCustomerOpen) {

@@ -5,28 +5,44 @@
   <div class="panel form-panel">
     <div class="section-title"><div><span class="step-number">01</span><h2>{{ 'Purchase details' | translate }}</h2></div></div>
     <div class="form-grid">
-      <label>{{ 'Vendor name' | translate }}<input [(ngModel)]="vm.vendorName" name="vendorName" [placeholder]="'Vendor or supplier' | translate"></label>
+      <label>{{ 'Vendor name' | translate }}
+        <select [(ngModel)]="vm.selectedVendorId" name="vendorSelect" (ngModelChange)="vm.vendorName = vm.selectedPurchaseVendor()?.company_name ?? ''">
+          <option [ngValue]="null">-- {{ 'Select Vendor / Supplier' | translate }} --</option>
+          @for (vendor of vm.vendorService.vendors(); track vendor.id) {
+            <option [ngValue]="vendor.id">{{ vendor.company_name }} ({{ vendor.name }} · {{ vendor.phone }})</option>
+          }
+        </select>
+      </label>
       <label>{{ 'Vendor invoice no.' | translate }}<input [(ngModel)]="vm.vendorInvoice" name="vendorInvoice" placeholder="e.g. PO-00482"></label>
       <label>{{ 'Purchase date' | translate }}<input [(ngModel)]="vm.purchaseDate" name="purchaseDate" type="date"></label>
     </div>
+    @if (vm.selectedPurchaseVendor(); as selectedVendor) {
+      <div class="vendor-details-summary">
+        <span><strong>{{ selectedVendor.company_name }}</strong></span>
+        <span>{{ selectedVendor.name }} · {{ selectedVendor.phone }}</span>
+        @if (selectedVendor.gstin) { <span>GSTIN: {{ selectedVendor.gstin }}</span> }
+      </div>
+    }
     <div class="form-divider"></div>
     <div class="section-title"><div><span class="step-number">02</span><h2>{{ 'Received items' | translate }}</h2></div></div>
     <div class="purchase-entry">
       <div class="purchase-search"><label for="purchase-code">{{ 'Item code or name' | translate }}</label><input id="purchase-code" [ngModel]="vm.purchaseCode()" (ngModelChange)="vm.purchaseCode.set($event)" (keydown.enter)="vm.purchaseMatches().length ? vm.selectPurchaseItem(vm.purchaseMatches()[0]) : vm.stagePurchaseItem()" name="purchaseCode" [placeholder]="'e.g. 101 or PVC pipe' | translate" autocomplete="off">
         @if (vm.purchaseMatches().length) { <span class="purchase-suggestions">@for (match of vm.purchaseMatches(); track match.id) { <button type="button" (click)="vm.selectPurchaseItem(match)"><span class="item-code">{{ match.code }}</span>{{ match.name }}</button> }</span> }
       </div>
-      <label>{{ 'Quantity' | translate }}<input type="number" min="1" [ngModel]="vm.purchaseQuantity()" (ngModelChange)="vm.purchaseQuantity.set($event)" name="purchaseQuantity"></label>
-      <label>{{ 'Unit cost ₹' | translate }}<input type="number" min="0" [ngModel]="vm.purchaseUnitCost()" (ngModelChange)="vm.purchaseUnitCost.set($event)" name="purchaseUnitCost"></label>
+      <label>{{ 'Received qty' | translate }}<input type="number" min="1" [ngModel]="vm.purchaseQuantity()" (ngModelChange)="vm.purchaseQuantity.set($event)" name="purchaseQuantity"></label>
+      <label>{{ 'Purchase cost ₹' | translate }}<input type="number" min="0" [ngModel]="vm.purchaseUnitCost()" (ngModelChange)="vm.purchaseUnitCost.set($event)" name="purchaseUnitCost"></label>
+      <label>{{ 'Selling cost / Counter price ₹' | translate }}<input type="number" min="0" [ngModel]="vm.purchaseSellingPrice()" (ngModelChange)="vm.purchaseSellingPrice.set($event)" name="purchaseSellingPrice"></label>
       <button class="button button-secondary" type="button" (click)="vm.stagePurchaseItem()">{{ '＋ Add line' | translate }}</button>
     </div>
     @if (vm.purchaseLines().length) {
-      <div class="table-wrap staged-table"><table class="data-table"><thead><tr><th>{{ 'ITEM' | translate }}</th><th>{{ 'QTY' | translate }}</th><th>{{ 'UNIT COST' | translate }}</th><th class="align-right">{{ 'LINE TOTAL' | translate }}</th></tr></thead><tbody>@for (line of vm.purchaseLines(); track $index) { <tr><td>{{ line.item.code }} · {{ line.item.name }}</td><td>{{ line.quantity }}</td><td>₹{{ line.unitCost | number:'1.2-2' }}</td><td class="align-right">₹{{ line.quantity * line.unitCost | number:'1.2-2' }}</td></tr> }</tbody></table></div>
+      <div class="table-wrap staged-table"><table class="data-table"><thead><tr><th>{{ 'ITEM' | translate }}</th><th>{{ 'QTY' | translate }}</th><th>{{ 'PURCHASE COST' | translate }}</th><th>{{ 'SELLING PRICE' | translate }}</th><th class="align-right">{{ 'LINE TOTAL' | translate }}</th></tr></thead><tbody>@for (line of vm.purchaseLines(); track $index) { <tr><td>{{ line.item.code }} · {{ line.item.name }}</td><td><input class="table-input cart-edit-input" type="number" min="1" [ngModel]="line.quantity" (ngModelChange)="vm.updatePurchaseLine($index, 'quantity', $event)"></td><td><input class="table-input cart-edit-input" type="number" min="0" [ngModel]="line.purchaseCost" (ngModelChange)="vm.updatePurchaseLine($index, 'purchaseCost', $event)"></td><td><input class="table-input cart-edit-input" type="number" min="0" [ngModel]="line.sellingPrice" (ngModelChange)="vm.updatePurchaseLine($index, 'sellingPrice', $event)"></td><td class="align-right strong">₹{{ vm.purchaseLineTotal(line) | number:'1.2-2' }}</td></tr> }</tbody></table></div>
+      <div class="summary-lines"><div><span>{{ 'Purchase total' | translate }}</span><strong>₹{{ vm.purchaseInvoiceTotal() | number:'1.2-2' }}</strong></div></div>
     } @else { <p class="inline-empty">{{ 'No items added to this delivery yet.' | translate }}</p> }
-    <div class="form-actions"><span>{{ 'Stock is updated when you save.' | translate }}</span><button class="button button-primary" type="button" (click)="vm.savePurchase()">{{ 'Save purchase' | translate }}</button></div>
+    <div class="form-actions"><span>{{ 'Stock is updated when you save and current master prices are refreshed.' | translate }}</span><button class="button button-primary" type="button" (click)="vm.savePurchase()">{{ 'Save purchase' | translate }}</button></div>
   </div>
   <aside class="panel history-panel">
     <div class="section-title"><div><span class="step-number">↗</span><h2>{{ 'Recent purchases' | translate }}</h2></div></div>
-    @if (vm.purchaseHistory().length) { <div class="history-list">@for (entry of vm.purchaseHistory(); track $index) { <div class="history-entry"><span class="history-icon">↓</span><span><strong>{{ entry.split(' · ')[0] }}</strong><small>{{ entry.split(' · ')[1] }} · {{ entry.split(' · ')[2] }}</small></span><span class="history-status">{{ 'Saved' | translate }}</span></div> }</div> }
+    @if (vm.purchaseHistory().length) { <div class="history-list">@for (entry of vm.purchaseHistory(); track $index) { <div class="history-entry"><span class="history-icon">↓</span><span><strong>{{ entry.invoiceNo }}</strong><small>{{ entry.vendorCompany }} · {{ entry.date }}</small></span><span class="history-status">{{ 'Saved' | translate }}</span></div> }</div> }
     @else { <div class="history-empty">{{ 'Purchase records created in this session will appear here.' | translate }}</div> }
   </aside>
 </section>

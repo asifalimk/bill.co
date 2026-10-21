@@ -1,0 +1,37 @@
+<section class="page-heading no-print">
+  <div><p class="eyebrow">{{ 'VENDOR MANAGEMENT' | translate }}</p><h1>{{ 'Vendors' | translate }}</h1><p class="muted">{{ 'Manage supplier contact details and delivery records.' | translate }}</p></div>
+  <button class="button button-primary" type="button" (click)="openNewVendor()">{{ 'Add vendor' | translate }}</button>
+</section>
+<section class="panel management-panel no-print">
+  <div class="management-toolbar">
+    <strong>{{ vendorService.vendorCount() }} {{ 'vendors' | translate }}</strong>
+    <label class="toolbar-search"><span>⌕</span><input [value]="search()" (input)="search.set(($any($event.target)).value)" [placeholder]="'Search by vendor name or phone' | translate" [attr.aria-label]="'Search vendors' | translate"></label>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table customer-table">
+      <thead><tr><th>{{ 'Vendor name' | translate }}</th><th>{{ 'Company' | translate }}</th><th>{{ 'Phone number' | translate }}</th><th>{{ 'Email' | translate }}</th><th>{{ 'Address' | translate }}</th><th>{{ 'GSTIN' | translate }}</th><th>{{ 'Created' | translate }}</th><th><span class="sr-only">{{ 'Actions' | translate }}</span></th></tr></thead>
+      <tbody>
+        @for (vendor of filteredVendors(); track vendor.id) {
+          <tr><td class="strong">{{ vendor.name }}</td><td>{{ vendor.company_name }}</td><td>{{ vendor.phone }}</td><td>{{ vendor.email || '—' }}</td><td>{{ vendor.address || '—' }}</td><td>{{ vendor.gstin || '—' }}</td><td>{{ vendor.created_at | date:'mediumDate' }}</td><td><button class="text-button" type="button" (click)="editVendor(vendor)">{{ 'Edit' | translate }}</button></td></tr>
+        } @empty { <tr><td colspan="8" class="table-empty">{{ 'No vendors found.' | translate }}</td></tr> }
+      </tbody>
+    </table>
+  </div>
+</section>
+@if (formOpen()) {
+  <div class="modal-backdrop no-print" (click)="formOpen.set(false)">
+    <section class="modal-card panel" role="dialog" aria-modal="true" aria-labelledby="vendor-form-title" (click)="$event.stopPropagation()">
+      <div class="modal-heading"><div><p class="eyebrow">{{ 'VENDOR MANAGEMENT' | translate }}</p><h2 id="vendor-form-title">{{ editingVendor() ? ('Edit vendor' | translate) : ('Add vendor' | translate) }}</h2></div><button class="remove-button" type="button" [attr.aria-label]="'Close' | translate" (click)="formOpen.set(false)">×</button></div>
+      <form class="form-grid modal-form" (ngSubmit)="saveVendor()">
+        <label>{{ 'Contact person' | translate }}<input [(ngModel)]="name" name="vendorName" required></label>
+        <label>{{ 'Company name' | translate }}<input [(ngModel)]="companyName" name="vendorCompanyName" required></label>
+        <label>{{ 'Phone number' | translate }}<input [(ngModel)]="phone" name="vendorPhone" inputmode="numeric" maxlength="15" required></label>
+        <label>{{ 'Email' | translate }}<input [(ngModel)]="email" name="vendorEmail" type="email"></label>
+        <label>{{ 'Address' | translate }}<input [(ngModel)]="address" name="vendorAddress"></label>
+        <label>{{ 'GSTIN' | translate }}<input [(ngModel)]="gstin" name="vendorGstin"></label>
+        @if (formError()) { <p class="form-error" role="alert">{{ formError() | translate }}</p> }
+        <div class="modal-actions"><button class="button button-secondary" type="button" (click)="formOpen.set(false)">{{ 'Cancel' | translate }}</button><button class="button button-primary" type="submit">{{ 'Save vendor' | translate }}</button></div>
+      </form>
+    </section>
+  </div>
+}

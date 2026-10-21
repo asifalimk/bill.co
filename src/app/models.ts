@@ -13,6 +13,17 @@ export interface Customer {
   created_at: string;
 }
 
+export interface Vendor {
+  id: number;
+  name: string;
+  company_name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  gstin?: string;
+  created_at: string;
+}
+
 export interface Item {
   id: number;
   code: string;
@@ -31,6 +42,19 @@ export interface CartLine {
   discount: number;
 }
 
+export interface CompanyProfile {
+  store_name: string;
+  short_name: string;
+  tagline: string;
+  phone: string;
+  address: string;
+  gstin: string;
+  email: string;
+  website: string;
+  footer_note: string;
+  terms: string;
+}
+
 export interface Receipt {
   invoiceNo: string;
   date: Date;
@@ -38,11 +62,18 @@ export interface Receipt {
   paymentType: PaymentType;
   customerName: string;
   customerPhone: string;
+  customerGstin?: string;
   customerId?: number;
+  site_note?: string;
   lines: CartLine[];
   subtotal: number;
   discount: number;
   total: number;
+  total_cost?: number;
+  gross_amount?: number;
+  total_discounts?: number;
+  net_amount?: number;
+  net_profit?: number;
   isEdited: boolean;
   editedAt?: Date;
   editedBy?: string;
