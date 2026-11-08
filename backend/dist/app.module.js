@@ -16,6 +16,7 @@ const vendors_module_1 = require("./vendors/vendors.module");
 const purchases_module_1 = require("./purchases/purchases.module");
 const invoices_module_1 = require("./invoices/invoices.module");
 const company_profile_module_1 = require("./company-profile/company-profile.module");
+const auth_module_1 = require("./auth/auth.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -24,6 +25,7 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({ isGlobal: true }),
             prisma_module_1.PrismaModule,
+            auth_module_1.AuthModule,
             items_module_1.ItemsModule,
             customers_module_1.CustomersModule,
             vendors_module_1.VendorsModule,

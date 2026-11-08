@@ -14,7 +14,9 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompanyProfileController = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const company_profile_service_1 = require("./company-profile.service");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 let CompanyProfileController = class CompanyProfileController {
     companyProfileService;
     constructor(companyProfileService) {
@@ -36,6 +38,7 @@ __decorate([
 ], CompanyProfileController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.ADMIN),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -43,6 +46,7 @@ __decorate([
 ], CompanyProfileController.prototype, "update", null);
 exports.CompanyProfileController = CompanyProfileController = __decorate([
     (0, common_1.Controller)('api/company-profile'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.ADMIN, client_1.UserRole.CASHIER),
     __metadata("design:paramtypes", [company_profile_service_1.CompanyProfileService])
 ], CompanyProfileController);
 //# sourceMappingURL=company-profile.controller.js.map

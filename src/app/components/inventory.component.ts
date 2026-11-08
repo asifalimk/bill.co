@@ -21,7 +21,6 @@ export class InventoryComponent {
   editUnit: ItemUnit = 'Pcs';
   editCost = 0;
   editPrice = 0;
-  editStock = 0;
   editMinStock = 20;
 
   edit(item: Item): void {
@@ -32,22 +31,21 @@ export class InventoryComponent {
     this.editUnit = item.unit;
     this.editCost = item.purchase_price;
     this.editPrice = item.selling_price;
-    this.editStock = item.stock_qty;
     this.editMinStock = item.min_stock_level;
   }
 
-  saveEdit(): void {
+  async saveEdit(): Promise<void> {
     const item = this.editingItem();
     if (!item) return;
     try {
-      this.vm.inventory.updateItem(item.id, {
+      await this.vm.inventory.updateItem(item.id, {
         code: this.editCode.trim(),
         name: this.editName.trim(),
         category: this.editCategory,
         unit: this.editUnit,
         purchase_price: Number(this.editCost),
         selling_price: Number(this.editPrice),
-        stock_qty: Number(this.editStock),
+        stock_qty: item.stock_qty,
         min_stock_level: Number(this.editMinStock)
       });
       this.editingItem.set(null);

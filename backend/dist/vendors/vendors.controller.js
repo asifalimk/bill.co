@@ -11,12 +11,13 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VendorsController = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const client_2 = require("@prisma/client");
 const vendors_service_1 = require("./vendors.service");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 let VendorsController = class VendorsController {
     vendorsService;
     constructor(vendorsService) {
@@ -56,7 +57,7 @@ __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [typeof (_a = typeof client_1.Prisma !== "undefined" && client_1.Prisma.VendorCreateInput) === "function" ? _a : Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], VendorsController.prototype, "create", null);
 __decorate([
@@ -64,7 +65,7 @@ __decorate([
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, typeof (_b = typeof client_1.Prisma !== "undefined" && client_1.Prisma.VendorUpdateInput) === "function" ? _b : Object]),
+    __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], VendorsController.prototype, "update", null);
 __decorate([
@@ -76,6 +77,7 @@ __decorate([
 ], VendorsController.prototype, "remove", null);
 exports.VendorsController = VendorsController = __decorate([
     (0, common_1.Controller)('api/vendors'),
+    (0, roles_decorator_1.Roles)(client_2.UserRole.ADMIN),
     __metadata("design:paramtypes", [vendors_service_1.VendorsService])
 ], VendorsController);
 //# sourceMappingURL=vendors.controller.js.map

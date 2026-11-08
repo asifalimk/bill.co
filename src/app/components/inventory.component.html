@@ -27,7 +27,6 @@
         <label>{{ 'Unit' | translate }}<select [(ngModel)]="editUnit" name="editUnit"><option>Pcs</option><option>Mtr</option><option>Kg</option><option>Box</option></select></label>
         <label>{{ 'Cost price ₹' | translate }}<input type="number" min="0" [(ngModel)]="editCost" name="editCost" required></label>
         <label>{{ 'Selling price ₹' | translate }}<input type="number" min="0.01" [(ngModel)]="editPrice" name="editPrice" required></label>
-        <label>{{ 'Current stock' | translate }}<input type="number" min="0" [(ngModel)]="editStock" name="editStock" required></label>
         <label>{{ 'Minimum stock level' | translate }}<input type="number" min="0" [(ngModel)]="editMinStock" name="editMinStock" required></label>
         <div class="modal-actions"><button class="button button-secondary" type="button" (click)="editingItem.set(null)">{{ 'Cancel' | translate }}</button><button class="button button-primary" type="submit">{{ 'Save changes' | translate }}</button></div>
       </form>

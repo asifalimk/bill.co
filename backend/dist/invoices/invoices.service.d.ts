@@ -1,19 +1,210 @@
+import { PaymentType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+type CheckoutBody = {
+    invoice_no: string;
+    customer_id?: number;
+    customer_name?: string;
+    customer_phone?: string;
+    customer_gstin?: string;
+    site_note?: string;
+    bill_discount?: number;
+    payment_type: PaymentType;
+    items: Array<{
+        item_id: number;
+        quantity: number;
+        line_discount?: number;
+    }>;
+};
 export declare class InvoicesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    findAll(startDate?: string, endDate?: string): any;
-    findOne(id: number): Promise<any>;
-    checkout(body: {
-        invoice_no: string;
-        customer_id?: number;
-        site_note?: string;
-        payment_type: 'CASH' | 'CREDIT';
-        items: Array<{
-            item_id: number;
+    findAll(startDate?: string, endDate?: string, paymentType?: PaymentType): Prisma.PrismaPromise<({
+        customer: {
+            id: number;
+            name: string;
+            created_at: Date;
+            updated_at: Date;
+            phone: string;
+            address: string | null;
+            gstin: string | null;
+            credit_balance: Prisma.Decimal;
+        } | null;
+        items: {
+            id: number;
+            code: string;
+            name: string;
+            category: string;
+            unit: string;
+            purchase_price: Prisma.Decimal;
+            selling_price: Prisma.Decimal;
+            created_at: Date;
             quantity: number;
-            line_discount?: number;
-            selling_price?: number;
-        }>;
-    }): Promise<any>;
+            line_discount: Prisma.Decimal;
+            line_total: Prisma.Decimal;
+            line_net_profit: Prisma.Decimal;
+            invoice_id: number;
+            item_id: number;
+        }[];
+    } & {
+        id: number;
+        created_at: Date;
+        invoice_no: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_gstin: string | null;
+        cashier_name: string;
+        payment_type: import("@prisma/client").$Enums.PaymentType;
+        site_note: string | null;
+        gross_amount: Prisma.Decimal;
+        bill_discount: Prisma.Decimal;
+        total_discounts: Prisma.Decimal;
+        total_cost: Prisma.Decimal;
+        net_amount: Prisma.Decimal;
+        net_profit: Prisma.Decimal;
+        is_edited: boolean;
+        edited_at: Date | null;
+        customer_id: number | null;
+    })[]>;
+    findOne(id: number): Promise<{
+        customer: {
+            id: number;
+            name: string;
+            created_at: Date;
+            updated_at: Date;
+            phone: string;
+            address: string | null;
+            gstin: string | null;
+            credit_balance: Prisma.Decimal;
+        } | null;
+        items: {
+            id: number;
+            code: string;
+            name: string;
+            category: string;
+            unit: string;
+            purchase_price: Prisma.Decimal;
+            selling_price: Prisma.Decimal;
+            created_at: Date;
+            quantity: number;
+            line_discount: Prisma.Decimal;
+            line_total: Prisma.Decimal;
+            line_net_profit: Prisma.Decimal;
+            invoice_id: number;
+            item_id: number;
+        }[];
+    } & {
+        id: number;
+        created_at: Date;
+        invoice_no: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_gstin: string | null;
+        cashier_name: string;
+        payment_type: import("@prisma/client").$Enums.PaymentType;
+        site_note: string | null;
+        gross_amount: Prisma.Decimal;
+        bill_discount: Prisma.Decimal;
+        total_discounts: Prisma.Decimal;
+        total_cost: Prisma.Decimal;
+        net_amount: Prisma.Decimal;
+        net_profit: Prisma.Decimal;
+        is_edited: boolean;
+        edited_at: Date | null;
+        customer_id: number | null;
+    }>;
+    checkout(body: CheckoutBody, cashierName: string): Promise<{
+        customer: {
+            id: number;
+            name: string;
+            created_at: Date;
+            updated_at: Date;
+            phone: string;
+            address: string | null;
+            gstin: string | null;
+            credit_balance: Prisma.Decimal;
+        } | null;
+        items: {
+            id: number;
+            code: string;
+            name: string;
+            category: string;
+            unit: string;
+            purchase_price: Prisma.Decimal;
+            selling_price: Prisma.Decimal;
+            created_at: Date;
+            quantity: number;
+            line_discount: Prisma.Decimal;
+            line_total: Prisma.Decimal;
+            line_net_profit: Prisma.Decimal;
+            invoice_id: number;
+            item_id: number;
+        }[];
+    } & {
+        id: number;
+        created_at: Date;
+        invoice_no: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_gstin: string | null;
+        cashier_name: string;
+        payment_type: import("@prisma/client").$Enums.PaymentType;
+        site_note: string | null;
+        gross_amount: Prisma.Decimal;
+        bill_discount: Prisma.Decimal;
+        total_discounts: Prisma.Decimal;
+        total_cost: Prisma.Decimal;
+        net_amount: Prisma.Decimal;
+        net_profit: Prisma.Decimal;
+        is_edited: boolean;
+        edited_at: Date | null;
+        customer_id: number | null;
+    }>;
+    updateInvoice(id: number, body: CheckoutBody, cashierName: string): Promise<{
+        customer: {
+            id: number;
+            name: string;
+            created_at: Date;
+            updated_at: Date;
+            phone: string;
+            address: string | null;
+            gstin: string | null;
+            credit_balance: Prisma.Decimal;
+        } | null;
+        items: {
+            id: number;
+            code: string;
+            name: string;
+            category: string;
+            unit: string;
+            purchase_price: Prisma.Decimal;
+            selling_price: Prisma.Decimal;
+            created_at: Date;
+            quantity: number;
+            line_discount: Prisma.Decimal;
+            line_total: Prisma.Decimal;
+            line_net_profit: Prisma.Decimal;
+            invoice_id: number;
+            item_id: number;
+        }[];
+    } & {
+        id: number;
+        created_at: Date;
+        invoice_no: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_gstin: string | null;
+        cashier_name: string;
+        payment_type: import("@prisma/client").$Enums.PaymentType;
+        site_note: string | null;
+        gross_amount: Prisma.Decimal;
+        bill_discount: Prisma.Decimal;
+        total_discounts: Prisma.Decimal;
+        total_cost: Prisma.Decimal;
+        net_amount: Prisma.Decimal;
+        net_profit: Prisma.Decimal;
+        is_edited: boolean;
+        edited_at: Date | null;
+        customer_id: number | null;
+    }>;
 }
+export {};

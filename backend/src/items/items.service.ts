@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -37,16 +37,46 @@ export class ItemsService {
   }
 
   create(dto: Prisma.ItemCreateInput) {
-    return this.prisma.item.create({ data: dto });
+    this.validateItem(dto);
+    return this.prisma.item.create({ data: { ...dto, stock_qty: 0 } });
   }
 
   async update(id: number, dto: Prisma.ItemUpdateInput) {
     await this.findOne(id);
-    return this.prisma.item.update({ where: { id }, data: dto });
+    this.validateItem(dto);
+    const { stock_qty: _stockQty, ...itemDetails } = dto;
+    void _stockQty;
+    return this.prisma.item.update({ where: { id }, data: itemDetails });
   }
 
   async remove(id: number) {
     await this.findOne(id);
     return this.prisma.item.delete({ where: { id } });
+  }
+
+  async adjustStock(id: number, quantity: number) {
+    const item = await this.findOne(id);
+    if (!Number.isInteger(quantity) || quantity === 0) {
+      throw new BadRequestException('Stock adjustment must be a non-zero whole number.');
+    }
+    if (quantity < 0) {
+      const updated = await this.prisma.item.updateMany({
+        where: { id, stock_qty: { gte: Math.abs(quantity) } },
+        data: { stock_qty: { decrement: Math.abs(quantity) } },
+      });
+      if (!updated.count) throw new BadRequestException(`Insufficient stock for ${item.name}.`);
+      return this.findOne(id);
+    }
+    return this.prisma.item.update({
+      where: { id },
+      data: { stock_qty: { increment: quantity } },
+    });
+  }
+
+  private validateItem(item: Prisma.ItemCreateInput | Prisma.ItemUpdateInput): void {
+    const code = typeof item.code === 'string' ? item.code : undefined;
+    if (code !== undefined && !/^\d{3}$/.test(code)) {
+      throw new BadRequestException('Item code must contain exactly three digits.');
+    }
   }
 }

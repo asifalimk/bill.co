@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PurchasesService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
 let PurchasesService = class PurchasesService {
     prisma;
@@ -35,41 +36,55 @@ let PurchasesService = class PurchasesService {
         return purchase;
     }
     async create(body) {
-        const vendor = await this.prisma.vendor.findUnique({ where: { id: body.vendor_id } });
-        if (!vendor) {
-            throw new common_1.NotFoundException(`Vendor ${body.vendor_id} was not found.`);
+        if (!body.invoice_no.trim() || !body.lines.length) {
+            throw new common_1.BadRequestException('A vendor invoice number and at least one purchase item are required.');
         }
         return this.prisma.$transaction(async (tx) => {
+            const vendor = await tx.vendor.findUnique({ where: { id: body.vendor_id } });
+            if (!vendor)
+                throw new common_1.NotFoundException(`Vendor ${body.vendor_id} was not found.`);
+            const purchaseDate = body.purchase_date ? new Date(body.purchase_date) : new Date();
+            if (Number.isNaN(purchaseDate.getTime()))
+                throw new common_1.BadRequestException('Invalid purchase date.');
             const purchase = await tx.purchase.create({
                 data: {
                     vendor_id: body.vendor_id,
                     invoice_no: body.invoice_no,
                     notes: body.notes,
+                    purchase_date: purchaseDate,
                 },
             });
+            let totalAmount = new client_1.Prisma.Decimal(0);
             for (const line of body.lines) {
-                const item = await tx.item.findUnique({ where: { id: line.item_id } });
-                if (!item) {
-                    throw new common_1.NotFoundException(`Item ${line.item_id} was not found.`);
+                if (!Number.isInteger(line.quantity) || line.quantity <= 0 ||
+                    !Number.isFinite(line.unit_cost) || line.unit_cost < 0 ||
+                    !Number.isFinite(line.selling_price) || line.selling_price < 0) {
+                    throw new common_1.BadRequestException('Purchase quantities and prices must be valid.');
                 }
+                const item = await tx.item.findUnique({ where: { id: line.item_id } });
+                if (!item)
+                    throw new common_1.NotFoundException(`Item ${line.item_id} was not found.`);
                 await tx.item.update({
                     where: { id: line.item_id },
                     data: {
-                        stock_qty: item.stock_qty + line.quantity,
-                        purchase_price: line.unit_cost,
-                        selling_price: line.selling_price,
+                        stock_qty: { increment: line.quantity },
+                        purchase_price: new client_1.Prisma.Decimal(line.unit_cost),
+                        selling_price: new client_1.Prisma.Decimal(line.selling_price),
                     },
                 });
-                await tx.purchaseLine.create({
+                await tx.purchaseItem.create({
                     data: {
                         purchase_id: purchase.id,
                         item_id: line.item_id,
                         quantity: line.quantity,
-                        unit_cost: line.unit_cost,
-                        selling_price: line.selling_price,
+                        unit_cost: new client_1.Prisma.Decimal(line.unit_cost),
+                        selling_price: new client_1.Prisma.Decimal(line.selling_price),
+                        line_total: new client_1.Prisma.Decimal(line.unit_cost).mul(line.quantity),
                     },
                 });
+                totalAmount = totalAmount.add(new client_1.Prisma.Decimal(line.unit_cost).mul(line.quantity));
             }
+            await tx.purchase.update({ where: { id: purchase.id }, data: { total_amount: totalAmount } });
             return tx.purchase.findUnique({
                 where: { id: purchase.id },
                 include: { lines: true, vendor: true },

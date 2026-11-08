@@ -55,7 +55,7 @@ export class VendorsComponent {
     this.formOpen.set(true);
   }
 
-  saveVendor(): void {
+  async saveVendor(): Promise<void> {
     try {
       const details = {
         name: this.name,
@@ -67,9 +67,9 @@ export class VendorsComponent {
       };
       const existing = this.editingVendor();
       if (existing) {
-        this.vendorService.update(existing.id, details);
+        await this.vendorService.update(existing.id, details);
       } else {
-        this.vendorService.add(details);
+        await this.vendorService.add(details);
       }
       this.formOpen.set(false);
       this.formError.set('');

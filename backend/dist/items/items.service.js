@@ -45,15 +45,44 @@ let ItemsService = class ItemsService {
         return item;
     }
     create(dto) {
-        return this.prisma.item.create({ data: dto });
+        this.validateItem(dto);
+        return this.prisma.item.create({ data: { ...dto, stock_qty: 0 } });
     }
     async update(id, dto) {
         await this.findOne(id);
-        return this.prisma.item.update({ where: { id }, data: dto });
+        this.validateItem(dto);
+        const { stock_qty: _stockQty, ...itemDetails } = dto;
+        void _stockQty;
+        return this.prisma.item.update({ where: { id }, data: itemDetails });
     }
     async remove(id) {
         await this.findOne(id);
         return this.prisma.item.delete({ where: { id } });
+    }
+    async adjustStock(id, quantity) {
+        const item = await this.findOne(id);
+        if (!Number.isInteger(quantity) || quantity === 0) {
+            throw new common_1.BadRequestException('Stock adjustment must be a non-zero whole number.');
+        }
+        if (quantity < 0) {
+            const updated = await this.prisma.item.updateMany({
+                where: { id, stock_qty: { gte: Math.abs(quantity) } },
+                data: { stock_qty: { decrement: Math.abs(quantity) } },
+            });
+            if (!updated.count)
+                throw new common_1.BadRequestException(`Insufficient stock for ${item.name}.`);
+            return this.findOne(id);
+        }
+        return this.prisma.item.update({
+            where: { id },
+            data: { stock_qty: { increment: quantity } },
+        });
+    }
+    validateItem(item) {
+        const code = typeof item.code === 'string' ? item.code : undefined;
+        if (code !== undefined && !/^\d{3}$/.test(code)) {
+            throw new common_1.BadRequestException('Item code must contain exactly three digits.');
+        }
     }
 };
 exports.ItemsService = ItemsService;

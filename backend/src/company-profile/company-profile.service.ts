@@ -1,39 +1,59 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+export type CompanyProfileUpdate = Partial<Pick<
+  Prisma.CompanyProfileCreateInput,
+  | 'store_name'
+  | 'tagline'
+  | 'phone_primary'
+  | 'address_line1'
+  | 'city'
+  | 'state'
+  | 'pincode'
+  | 'gstin'
+  | 'terms_and_conditions'
+  | 'short_name'
+  | 'email'
+  | 'website'
+  | 'footer_note'
+>>;
 
 @Injectable()
 export class CompanyProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findOne() {
-    const profile = await this.prisma.companyProfile.findFirst();
-    if (!profile) {
-      throw new NotFoundException('Company profile not found.');
-    }
-    return profile;
+    return this.prisma.companyProfile.upsert({
+      where: { id: 1 },
+      create: this.defaults(),
+      update: {},
+    });
   }
 
-  async update(dto: Record<string, any>) {
-    const existing = await this.prisma.companyProfile.findFirst();
-    if (!existing) {
-      return this.prisma.companyProfile.create({
-        data: {
-          store_name: dto.store_name ?? 'HARDWARE COUNTER',
-          tagline: dto.tagline ?? 'Retail hardware & supplies',
-          phone_primary: dto.phone_primary ?? '98765 43210',
-          address_line1: dto.address_line1 ?? '24 Market Road',
-          city: dto.city ?? 'Kochi',
-          state: dto.state ?? 'Kerala',
-          pincode: dto.pincode ?? '682001',
-          gstin: dto.gstin ?? '32ABCDE1234F1Z5',
-          terms_and_conditions: dto.terms_and_conditions ?? 'Goods once sold are not returnable unless damaged.',
-        },
-      });
-    }
-
-    return this.prisma.companyProfile.update({
-      where: { id: existing.id },
-      data: dto,
+  async update(dto: CompanyProfileUpdate) {
+    return this.prisma.companyProfile.upsert({
+      where: { id: 1 },
+      create: { ...this.defaults(), ...dto },
+      update: dto,
     });
+  }
+
+  private defaults(): Prisma.CompanyProfileCreateInput {
+    return {
+      store_name: 'HARDWARE COUNTER',
+      short_name: 'H',
+      tagline: 'Retail hardware & supplies',
+      phone_primary: '98765 43210',
+      address_line1: '24 Market Road',
+      city: 'Kochi',
+      state: 'Kerala',
+      pincode: '682001',
+      gstin: '',
+      terms_and_conditions: 'Goods once sold are not returnable unless damaged.',
+      email: '',
+      website: '',
+      footer_note: 'Thank you for your business!',
+    };
   }
 }

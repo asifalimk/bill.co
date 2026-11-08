@@ -1,8 +1,11 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { VendorsService } from './vendors.service';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/vendors')
+@Roles(UserRole.ADMIN)
 export class VendorsController {
   constructor(private readonly vendorsService: VendorsService) {}
 

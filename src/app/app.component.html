@@ -1,20 +1,7 @@
-@if (!auth.user()) {
-  <main class="login-shell">
-    <section class="login-card panel">
-      <div class="brand-mark">{{ profile().short_name || 'H' }}</div>
-      <p class="eyebrow">{{ profile().store_name }}</p>
-      <h1>{{ 'Welcome back' | translate }}</h1>
-      <p class="muted">{{ 'Sign in to open your point-of-sale workspace.' | translate }}</p>
-      <form class="login-form" (ngSubmit)="login()">
-        <label>{{ 'Username' | translate }}<input name="loginUsername" [(ngModel)]="loginUsername" autocomplete="username" required autofocus></label>
-        <label>{{ 'Password' | translate }}<input name="loginPassword" [(ngModel)]="loginPassword" type="password" autocomplete="current-password"></label>
-        <label>{{ '4-digit cashier PIN' | translate }} <span class="optional">{{ 'Cashier only' | translate }}</span><input name="loginPin" [(ngModel)]="loginPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></label>
-        @if (loginError()) { <p class="form-error" role="alert">{{ loginError() | translate }}</p> }
-        <button class="button button-primary button-wide" type="submit">{{ 'Sign in' | translate }} <span>↗</span></button>
-      </form>
-      <div class="demo-credentials"><strong>{{ 'Demo access' | translate }}</strong><span>{{ 'Admin:' | translate }} <code>admin / admin123</code></span><span>{{ 'Cashier:' | translate }} <code>cashier / PIN 1234</code></span></div>
-    </section>
-  </main>
+@if (auth.isRestoring()) {
+  <main class="login-shell"><section class="login-card panel" role="status"><p class="muted">{{ 'Validating your session…' | translate }}</p></section></main>
+} @else if (!auth.isAuthenticated()) {
+  <app-login (loginSuccess)="onLoginSuccess()" />
 } @else {
   <div class="app-shell">
     <header class="topbar no-print">
@@ -22,7 +9,7 @@
       <div class="topbar-right">
         <button class="theme-toggle" type="button" [attr.aria-label]="(theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme') | translate" [attr.title]="(theme.theme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme') | translate" [attr.aria-pressed]="theme.theme() === 'dark'" (click)="theme.toggle()"><span aria-hidden="true">{{ theme.theme() === 'dark' ? '☀' : '☾' }}</span></button>
         <button class="language-toggle" type="button" [attr.aria-label]="'Switch language' | translate" [attr.aria-pressed]="translations.currentLang() === 'ml'" (click)="translations.toggleLanguage()">{{ translations.currentLang() === 'en' ? 'EN' : 'ML' }}</button>
-        <div class="user-chip"><span class="avatar">{{ auth.user()?.displayName?.slice(0, 1) }}</span><span class="user-label"><strong>{{ auth.user()?.displayName }}</strong><small>{{ auth.user()?.role }}</small></span><button class="lock-button" type="button" [attr.title]="'Lock session' | translate" [attr.aria-label]="'Lock session' | translate" (click)="auth.logout()">↪</button></div>
+        <div class="user-chip"><span class="avatar">{{ auth.currentUser()?.displayName?.slice(0, 1) }}</span><span class="user-label"><strong>{{ auth.currentUser()?.displayName }}</strong><small>{{ auth.currentUser()?.role }}</small></span><button class="lock-button" type="button" [attr.title]="'Lock session' | translate" [attr.aria-label]="'Lock session' | translate" (click)="auth.logout()">↪</button></div>
       </div>
     </header>
     <div class="workspace">
@@ -67,7 +54,6 @@
         <label>{{ 'Unit' | translate }}<select [(ngModel)]="newItemUnit" name="newItemUnit"><option>Pcs</option><option>Mtr</option><option>Kg</option><option>Box</option></select></label>
         <label>{{ 'Cost price ₹' | translate }}<input type="number" min="0" [(ngModel)]="newItemCost" name="newItemCost" required></label>
         <label>{{ 'Selling price ₹' | translate }}<input type="number" min="0.01" [(ngModel)]="newItemPrice" name="newItemPrice" required></label>
-        <label>{{ 'Current stock' | translate }}<input type="number" min="0" [(ngModel)]="newItemStock" name="newItemStock" required></label>
         <label>{{ 'Minimum stock level' | translate }}<input type="number" min="0" [(ngModel)]="newItemMinStock" name="newItemMinStock" required></label>
         <div class="modal-actions"><button class="button button-secondary" type="button" (click)="itemModalOpen.set(false)">{{ 'Cancel' | translate }}</button><button class="button button-primary" type="submit">{{ 'Add item' | translate }}</button></div>
       </form>

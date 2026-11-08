@@ -1,7 +1,8 @@
-import { AfterViewInit, Component, HostListener, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from './auth.service';
+import { AuthService } from './core/services/auth.service';
+import { AuthGuard } from './core/guards/auth.guard';
 import { BillingService } from './billing.service';
 import { InventoryService } from './inventory.service';
 import { ThemeService } from './theme.service';
@@ -19,6 +20,9 @@ import { VendorService } from './vendor.service';
 import { CompanyProfileService } from './company-profile.service';
 import { Vendor } from './models';
 import { SettingsComponent } from './components/settings.component';
+import { LoginComponent } from './features/auth/login.component';
+import { PurchaseService } from './core/services/purchase.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 type ViewName = 'billing' | 'inventory' | 'purchases' | 'returns' | 'invoices' | 'customers' | 'vendors' | 'settings';
 
@@ -48,16 +52,18 @@ interface ReturnLine {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslationPipe, PosCounterComponent, InventoryComponent, PurchasesComponent, SalesReturnComponent, InvoiceHistoryComponent, CustomersComponent, VendorsComponent, SettingsComponent],
+  imports: [CommonModule, FormsModule, TranslationPipe, LoginComponent, PosCounterComponent, InventoryComponent, PurchasesComponent, SalesReturnComponent, InvoiceHistoryComponent, CustomersComponent, VendorsComponent, SettingsComponent],
   templateUrl: './app.component.html'
 })
-export class AppComponent implements AfterViewInit {
+export class AppComponent implements AfterViewInit, OnInit {
   readonly auth = inject(AuthService);
+  private readonly authGuard = inject(AuthGuard);
   readonly billing = inject(BillingService);
   readonly inventory = inject(InventoryService);
   readonly customerService = inject(CustomerService);
   readonly vendorService = inject(VendorService);
   readonly companyProfileService = inject(CompanyProfileService);
+  readonly purchaseService = inject(PurchaseService);
   readonly theme = inject(ThemeService);
   readonly translations = inject(TranslationService);
   readonly profile = this.companyProfileService.profile;
@@ -73,7 +79,6 @@ export class AppComponent implements AfterViewInit {
   readonly receipt = signal<Receipt | null>(null);
   readonly editingInvoice = signal<Receipt | null>(null);
   readonly alert = signal('');
-  readonly loginError = signal('');
   readonly itemModalOpen = signal(false);
   readonly suggestions = computed(() => {
     const text = this.query().trim().toLowerCase();
@@ -122,9 +127,6 @@ export class AppComponent implements AfterViewInit {
   readonly selectedCartIndex = signal(0);
   readonly today = new Date();
 
-  loginUsername = '';
-  loginPassword = '';
-  loginPin = '';
   customerName = '';
   customerPhone = '';
   selectedCustomerId: number | null = null;
@@ -146,13 +148,65 @@ export class AppComponent implements AfterViewInit {
   newItemUnit: ItemUnit = 'Pcs';
   newItemCost = 0;
   newItemPrice = 0;
-  newItemStock = 0;
   newItemMinStock = 20;
 
+  ngOnInit(): void {
+    this.auth.restoreSession().subscribe({
+      next: user => {
+        if (!user) {
+          this.authGuard.canActivatePath('/pos');
+          return;
+        }
+        const path = window.location.pathname;
+        const initialView = this.viewFromPath(path);
+        if (initialView && this.authGuard.canActivatePath(path)) {
+          this.activeView.set(initialView);
+        } else {
+          this.navigate('billing');
+        }
+        void this.loadBackendData();
+        setTimeout(() => this.focusSearch());
+      },
+      error: () => {
+        this.authGuard.canActivatePath('/pos');
+        this.alert.set('Unable to validate your session. Check the API connection and sign in again.');
+      },
+    });
+  }
+
+  private async loadBackendData(): Promise<void> {
+    try {
+      const requests: Promise<void>[] = [
+        this.inventory.load(),
+        this.customerService.load(),
+        this.billing.loadInvoices(),
+        this.companyProfileService.load(),
+      ];
+      if (this.auth.isAdmin()) {
+        requests.push(this.vendorService.load(), this.purchaseService.load());
+      }
+      await Promise.all(requests);
+      this.purchaseHistory.set(this.purchaseService.purchases().map(purchase => ({
+        invoiceNo: purchase.invoice_no,
+        vendorId: purchase.vendor_id,
+        vendorName: purchase.vendor.name,
+        vendorCompany: purchase.vendor.company_name,
+        date: purchase.purchase_date,
+      })));
+    } catch (error) {
+      this.notify(`Unable to load business data from the API: ${this.errorMessage(error)}`);
+    }
+  }
+
   ngAfterViewInit(): void {
+    if (this.auth.isRestoring()) {
+      return;
+    }
     const initialView = this.viewFromPath(window.location.pathname);
-    if (initialView && (!['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(initialView) || this.auth.isAdmin())) {
+    if (initialView && this.authGuard.canActivatePath(window.location.pathname)) {
       this.activeView.set(initialView);
+    } else if (!initialView) {
+      this.authGuard.canActivatePath('/pos');
     }
     this.focusSearch();
   }
@@ -172,7 +226,7 @@ export class AppComponent implements AfterViewInit {
       this.theme.toggle();
       return;
     }
-    if (!this.auth.user()) {
+    if (!this.auth.isAuthenticated()) {
       return;
     }
     if ((event.key === 'F3' || (event.ctrlKey && event.key.toLowerCase() === 'n')) && this.activeView() === 'billing') {
@@ -222,24 +276,20 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
-  login(): void {
-    const successful = this.auth.login(this.loginUsername, this.loginPassword, this.loginPin);
-    this.loginError.set(successful ? '' : 'Login did not match. Use the demo credentials below.');
-    if (successful) {
-      this.loginPassword = '';
-      this.loginPin = '';
-      this.navigate('billing');
-      setTimeout(() => this.focusSearch());
-    }
+  onLoginSuccess(): void {
+    this.navigate('billing');
+    setTimeout(() => this.focusSearch());
   }
 
   navigate(view: ViewName): void {
-    if (['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(view) && !this.auth.isAdmin()) {
-      this.notify('Inventory, purchases, returns, and settings are available to admins only.');
+    const path = view === 'billing' ? '/pos' : `/${view}`;
+    if (!this.authGuard.canActivatePath(path)) {
+      if (this.auth.isAuthenticated() && !this.auth.isAdmin()) {
+        this.notify('Inventory, purchases, returns, vendors, and settings are available to admins only.');
+      }
       return;
     }
     this.activeView.set(view);
-    const path = view === 'billing' ? '/' : `/${view === 'returns' ? 'returns' : view}`;
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path);
     }
@@ -247,8 +297,9 @@ export class AppComponent implements AfterViewInit {
 
   @HostListener('window:popstate')
   restoreViewFromPath(): void {
-    const view = this.viewFromPath(window.location.pathname);
-    if (view && (!['inventory', 'purchases', 'returns', 'vendors', 'settings'].includes(view) || this.auth.isAdmin())) {
+    const path = window.location.pathname;
+    const view = this.viewFromPath(path);
+    if (view && this.authGuard.canActivatePath(path)) {
       this.activeView.set(view);
     }
   }
@@ -375,9 +426,9 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
-  createCustomerFromPos(): void {
+  async createCustomerFromPos(): Promise<void> {
     try {
-      const customer = this.customerService.add({
+      const customer = await this.customerService.add({
         name: this.customerName,
         phone: this.customerPhone,
         address: this.quickCustomerAddress,
@@ -521,7 +572,7 @@ export class AppComponent implements AfterViewInit {
     this.resetTransaction();
   }
 
-  checkout(payment: 'CASH' | 'CREDIT'): void {
+  async checkout(payment: 'CASH' | 'CREDIT'): Promise<void> {
     if (!this.billing.lines().length) {
       this.notify('Add at least one item before checkout.');
       return;
@@ -535,26 +586,6 @@ export class AppComponent implements AfterViewInit {
       });
       return;
     }
-    const invoiceBeingEdited = this.editingInvoice();
-    const quantityDeltas = new Map<number, number>();
-    invoiceBeingEdited?.lines.forEach(line =>
-      quantityDeltas.set(line.item.id, (quantityDeltas.get(line.item.id) ?? 0) - line.quantity)
-    );
-    this.billing.lines().forEach(line =>
-      quantityDeltas.set(line.item.id, (quantityDeltas.get(line.item.id) ?? 0) + line.quantity)
-    );
-    const stockError = [...quantityDeltas.entries()].find(([itemId, delta]) => {
-      const item = this.inventory.items().find(candidate => candidate.id === itemId);
-      return !item || item.stock_qty - delta < 0;
-    });
-    if (stockError) {
-      const item = this.inventory.items().find(candidate => candidate.id === stockError[0]);
-      const available = item?.stock_qty ?? 0;
-      this.notify(item
-        ? `Not enough stock for ${item.name}. Available: ${available}.`
-        : 'An item in this invoice no longer exists in inventory.');
-      return;
-    }
     try {
       const phone = this.customerPhone.trim();
       let customer = this.selectedCustomerId !== null
@@ -564,70 +595,49 @@ export class AppComponent implements AfterViewInit {
         customer = phone ? this.customerService.findByPhone(phone) : undefined;
       }
       if (payment === 'CREDIT' && !customer) {
-        customer = this.customerService.add({
+        customer = await this.customerService.add({
           name: this.customerName,
           phone,
           address: this.quickCustomerAddress,
           gstin: this.quickCustomerGstin
         });
       }
-      const lines = this.billing.lines().map(line => ({ ...line, item: { ...line.item } }));
-      quantityDeltas.forEach((delta, itemId) => { if (delta) this.inventory.adjustStock(itemId, -delta); });
-      const totalCost = lines.reduce((total, line) => total + (line.item.purchase_price * line.quantity), 0);
-      const grossAmount = lines.reduce((total, line) => total + (line.item.selling_price * line.quantity), 0);
-      const lineDiscountTotal = lines.reduce((total, line) => total + line.discount, 0);
-      const overallBillDiscount = Math.min(this.billing.billDiscount(), this.billing.subtotal());
-      const totalDiscounts = lineDiscountTotal + overallBillDiscount;
-      const netAmount = Math.max(0, grossAmount - totalDiscounts);
-      const netProfit = netAmount - totalCost;
-      const newReceipt: Receipt = {
-        ...(invoiceBeingEdited ?? {}),
-        invoiceNo: invoiceBeingEdited?.invoiceNo ?? `INV-${String(Date.now()).slice(-7)}`,
-        date: invoiceBeingEdited?.date ?? new Date(),
-        cashier: invoiceBeingEdited?.cashier ?? this.auth.user()?.displayName ?? 'Cashier',
-        paymentType: payment,
-        customerName: customer?.name ?? this.customerName.trim(),
-        customerPhone: customer?.phone ?? phone,
-        customerGstin: customer?.gstin ?? (this.quickCustomerGstin.trim() || undefined),
-        customerId: customer?.id,
-        site_note: this.siteNote.trim(),
-        lines,
-        subtotal: this.billing.subtotal(),
-        discount: overallBillDiscount,
-        total: netAmount,
-        total_cost: totalCost,
-        gross_amount: grossAmount,
-        total_discounts: totalDiscounts,
-        net_amount: netAmount,
-        net_profit: netProfit,
-        isEdited: Boolean(invoiceBeingEdited),
-        ...(invoiceBeingEdited ? {
-          editedAt: new Date(),
-          editedBy: this.auth.user()?.displayName ?? 'Cashier'
-        } : {})
-      };
-      const previousCustomerId = invoiceBeingEdited?.customerId;
-      const previousWasTrackedCredit = invoiceBeingEdited?.paymentType === 'CREDIT' && previousCustomerId !== undefined;
-      const nextIsCredit = payment === 'CREDIT' && customer !== undefined;
-      if (previousWasTrackedCredit && previousCustomerId === customer?.id && nextIsCredit) {
-        this.customerService.adjustCreditBalance(customer.id, newReceipt.total - invoiceBeingEdited.total);
-      } else {
-        if (previousWasTrackedCredit && previousCustomerId !== undefined) {
-          this.customerService.adjustCreditBalance(previousCustomerId, -invoiceBeingEdited.total);
-        }
-        if (nextIsCredit && customer) {
-          this.customerService.adjustCreditBalance(customer.id, newReceipt.total);
-        }
+      const invoiceBeingEdited = this.editingInvoice();
+      if (invoiceBeingEdited && !invoiceBeingEdited.id) {
+        throw new Error('This invoice has no database record and cannot be edited.');
       }
+      const request = {
+        invoice_no: invoiceBeingEdited?.invoiceNo ?? `INV-${String(Date.now()).slice(-7)}`,
+        ...(customer ? { customer_id: customer.id } : {}),
+        customer_name: customer?.name ?? this.customerName.trim(),
+        customer_phone: customer?.phone ?? phone,
+        customer_gstin: customer?.gstin ?? (this.quickCustomerGstin.trim() || undefined),
+        site_note: this.siteNote.trim() || undefined,
+        bill_discount: Math.min(this.billing.billDiscount(), this.billing.subtotal()),
+        payment_type: payment,
+        items: this.billing.lines().map(line => ({
+          item_id: line.item.id,
+          quantity: line.quantity,
+          line_discount: line.discount,
+        })),
+      };
+      const savedReceipt = invoiceBeingEdited
+        ? await this.billing.updateInvoice(invoiceBeingEdited.id!, request)
+        : await this.billing.checkout(request);
       if (invoiceBeingEdited) {
-        this.billing.updateInvoice(newReceipt);
         this.editingInvoice.set(null);
         this.alert.set('Invoice updated successfully.');
       } else {
-        this.savedReceipts.update(receipts => [newReceipt, ...receipts]);
         this.alert.set('');
       }
-      this.receipt.set(newReceipt);
+      this.receipt.set(savedReceipt);
+      const refreshResults = await Promise.allSettled([
+        this.inventory.load(),
+        this.customerService.load(),
+      ]);
+      if (refreshResults.some(result => result.status === 'rejected')) {
+        this.notify('Invoice saved, but some updated data could not be refreshed. Reload the page to retry.');
+      }
       this.billing.clear();
       this.activeSelectedItem.set(null);
       this.selectedCartIndex.set(0);
@@ -665,30 +675,28 @@ export class AppComponent implements AfterViewInit {
     this.newItemUnit = 'Pcs';
     this.newItemCost = 0;
     this.newItemPrice = 0;
-    this.newItemStock = 0;
     this.newItemMinStock = 20;
     this.itemModalOpen.set(true);
   }
 
-  saveNewItem(): void {
+  async saveNewItem(): Promise<void> {
     const code = this.newItemCode.trim();
     if (!/^\d{3}$/.test(code) || !this.newItemName.trim() ||
         !Number.isFinite(Number(this.newItemCost)) || this.newItemCost < 0 ||
         !Number.isFinite(Number(this.newItemPrice)) || this.newItemPrice <= 0 ||
-        !Number.isFinite(Number(this.newItemStock)) || this.newItemStock < 0 ||
         !Number.isFinite(Number(this.newItemMinStock)) || this.newItemMinStock < 0) {
-      this.notify('Enter a unique 3-digit code, name, valid prices, stock, and non-negative minimum stock level.');
+      this.notify('Enter a unique 3-digit code, name, valid prices, and non-negative minimum stock level.');
       return;
     }
     try {
-      this.inventory.addItem({
+      await this.inventory.addItem({
         code,
         name: this.newItemName.trim(),
         category: this.newItemCategory,
         unit: this.newItemUnit,
         purchase_price: Number(this.newItemCost),
         selling_price: Number(this.newItemPrice),
-        stock_qty: Number(this.newItemStock),
+        stock_qty: 0,
         min_stock_level: Number(this.newItemMinStock)
       });
       this.itemModalOpen.set(false);
@@ -764,28 +772,31 @@ export class AppComponent implements AfterViewInit {
     this.purchaseSellingPrice.set(item.selling_price);
   }
 
-  savePurchase(): void {
+  async savePurchase(): Promise<void> {
     const vendor = this.selectedVendorId !== null ? this.vendorService.findById(this.selectedVendorId) : undefined;
     if (!vendor || !this.vendorInvoice.trim() || !this.purchaseLines().length) {
       this.notify('Enter vendor details and add at least one purchase item.');
       return;
     }
     try {
-      this.purchaseLines().forEach(line => {
-        this.inventory.adjustStock(line.item.id, line.quantity);
-        this.inventory.updateItem(line.item.id, {
-          ...line.item,
-          purchase_price: Number(line.purchaseCost),
+      const purchase = await this.purchaseService.create({
+        vendor_id: vendor.id,
+        invoice_no: this.vendorInvoice.trim(),
+        purchase_date: this.purchaseDate,
+        lines: this.purchaseLines().map(line => ({
+          item_id: line.item.id,
+          quantity: line.quantity,
+          unit_cost: Number(line.purchaseCost),
           selling_price: Number(line.sellingPrice),
-          stock_qty: line.item.stock_qty + line.quantity
-        });
+        })),
       });
+      await this.inventory.load();
       this.purchaseHistory.update(history => [{
-        invoiceNo: this.vendorInvoice.trim(),
+        invoiceNo: purchase.invoice_no,
         vendorId: vendor.id,
         vendorName: vendor.name,
         vendorCompany: vendor.company_name,
-        date: this.purchaseDate
+        date: purchase.purchase_date
       }, ...history]);
       this.purchaseLines.set([]);
       this.purchaseCode.set('');
@@ -838,7 +849,7 @@ export class AppComponent implements AfterViewInit {
     }));
   }
 
-  processReturn(): void {
+  async processReturn(): Promise<void> {
     const selected = this.returnLines().filter(line => line.quantity > 0);
     if (!selected.length) {
       this.notify('Enter a return quantity for at least one item.');
@@ -854,9 +865,9 @@ export class AppComponent implements AfterViewInit {
       return;
     }
     try {
-      selected.filter(line => line.restock).forEach(line =>
+      await Promise.all(selected.filter(line => line.restock).map(line =>
         this.inventory.adjustStock(line.original.item.id, line.quantity)
-      );
+      ));
       const amount = selected.reduce((sum, line) => sum + line.quantity * line.refundUnitPrice, 0);
       this.returnedQuantities.update(quantities => {
         const updated = { ...quantities };
@@ -904,7 +915,7 @@ export class AppComponent implements AfterViewInit {
 
   private viewFromPath(path: string): ViewName | null {
     const route = path.replace(/\/+$/, '') || '/';
-    if (route === '/') return 'billing';
+    if (route === '/' || route === '/pos' || route === '/billing') return 'billing';
     if (route === '/inventory' || route === '/purchases' || route === '/returns' || route === '/invoices' || route === '/customers' || route === '/vendors' || route === '/settings') {
       return route.slice(1) as ViewName;
     }
@@ -916,6 +927,11 @@ export class AppComponent implements AfterViewInit {
   }
 
   private errorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      const body = error.error as { message?: unknown } | null;
+      if (Array.isArray(body?.message)) return body.message.join(', ');
+      if (typeof body?.message === 'string') return body.message;
+    }
     return error instanceof Error ? error.message : 'The operation could not be completed.';
   }
 }

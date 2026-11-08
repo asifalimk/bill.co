@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PurchasesController = void 0;
 const common_1 = require("@nestjs/common");
 const purchases_service_1 = require("./purchases.service");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const client_1 = require("@prisma/client");
 let PurchasesController = class PurchasesController {
     purchasesService;
     constructor(purchasesService) {
@@ -54,6 +56,7 @@ __decorate([
 ], PurchasesController.prototype, "create", null);
 exports.PurchasesController = PurchasesController = __decorate([
     (0, common_1.Controller)('api/purchases'),
+    (0, roles_decorator_1.Roles)(client_1.UserRole.ADMIN),
     __metadata("design:paramtypes", [purchases_service_1.PurchasesService])
 ], PurchasesController);
 //# sourceMappingURL=purchases.controller.js.map

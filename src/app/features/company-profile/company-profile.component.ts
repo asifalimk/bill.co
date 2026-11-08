@@ -24,6 +24,7 @@ import { CompanyProfile } from '../../core/models';
         </div>
       </div>
       <form class="form-grid settings-form" (ngSubmit)="$event.preventDefault()">
+        @if (companyProfileService.saveError()) { <p class="form-error" role="alert">{{ companyProfileService.saveError() }}</p> }
         <label>Store name<input [ngModel]="profile().store_name" (ngModelChange)="updateField('store_name', $event)" name="store_name"></label>
         <label>Short brand<input [ngModel]="profile().short_name" (ngModelChange)="updateField('short_name', $event)" name="short_name" maxlength="2"></label>
         <label>Tagline<input [ngModel]="profile().tagline" (ngModelChange)="updateField('tagline', $event)" name="tagline"></label>

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,12 +28,19 @@ export class CustomersService {
   }
 
   async adjustCredit(id: number, amount: number) {
-    const customer = await this.findOne(id);
-    const updated = await this.prisma.customer.update({
-      where: { id },
-      data: { credit_balance: customer.credit_balance + amount },
-    });
-    return updated;
+    if (!Number.isFinite(amount)) {
+      throw new BadRequestException('Credit adjustment must be a valid number.');
+    }
+    await this.findOne(id);
+    if (amount < 0) {
+      const updated = await this.prisma.customer.updateMany({
+        where: { id, credit_balance: { gte: Math.abs(amount) } },
+        data: { credit_balance: { decrement: Math.abs(amount) } },
+      });
+      if (!updated.count) throw new BadRequestException('Credit balance cannot be negative.');
+      return this.findOne(id);
+    }
+    return this.prisma.customer.update({ where: { id }, data: { credit_balance: { increment: amount } } });
   }
 
   async remove(id: number) {
