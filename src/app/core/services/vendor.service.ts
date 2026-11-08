@@ -1,82 +1,32 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, Optional, computed, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { API_BASE_URL } from '../config/api.config';
 import { Vendor } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class VendorService {
-  readonly vendors = signal<Vendor[]>([
-    {
-      id: 1,
-      name: 'Anil Nair',
-      company_name: 'Metro Plumbing Supplies',
-      phone: '9876543210',
-      email: 'sales@metroplumbing.in',
-      address: 'Kochi, Kerala',
-      gstin: '32ABCDE1234F1Z5',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      name: 'Sreelatha Menon',
-      company_name: 'Bright Electrical Mart',
-      phone: '9123456780',
-      email: 'hello@brightelectrical.in',
-      address: 'Thrissur, Kerala',
-      gstin: '32XYZDE5678F1Z5',
-      created_at: new Date().toISOString()
-    }
-  ]);
+  readonly vendors = signal<Vendor[]>([]);
   readonly vendorCount = computed(() => this.vendors().length);
-  private nextId = 3;
 
-  add(vendor: Omit<Vendor, 'id' | 'created_at'>): Vendor {
-    const name = vendor.name.trim();
-    const companyName = vendor.company_name.trim();
-    const phone = vendor.phone.trim();
-    if (!name || !companyName || !/^[0-9+()\-\s]{7,15}$/.test(phone)) {
-      throw new Error('Enter a vendor contact name, company name, and a valid phone number.');
-    }
-    if (this.findByPhone(phone)) {
-      throw new Error(`A vendor with phone ${phone} already exists.`);
-    }
-    const created: Vendor = {
-      ...vendor,
-      id: this.nextId++,
-      name,
-      company_name: companyName,
-      phone,
-      email: vendor.email?.trim() || undefined,
-      address: vendor.address?.trim() || undefined,
-      gstin: vendor.gstin?.trim() || undefined,
-      created_at: new Date().toISOString()
-    };
-    this.vendors.update(vendors => [created, ...vendors]);
-    return created;
+  constructor(@Optional() private readonly http?: HttpClient) {}
+
+  async load(): Promise<void> {
+    this.vendors.set(await firstValueFrom(this.requireHttp().get<Vendor[]>(`${API_BASE_URL}/vendors`)));
   }
 
-  update(vendorId: number, details: Omit<Vendor, 'id' | 'created_at'>): void {
-    const existing = this.vendors().find(vendor => vendor.id === vendorId);
-    if (!existing) {
-      throw new Error(`Cannot update vendor ${vendorId}: vendor was not found.`);
-    }
-    const name = details.name.trim();
-    const companyName = details.company_name.trim();
-    const phone = details.phone.trim();
-    if (!name || !companyName || !/^[0-9+()\-\s]{7,15}$/.test(phone)) {
-      throw new Error('Enter a vendor contact name, company name, and a valid phone number.');
-    }
-    if (this.vendors().some(vendor => vendor.id !== vendorId && vendor.phone === phone)) {
-      throw new Error(`A vendor with phone ${phone} already exists.`);
-    }
-    this.vendors.update(vendors => vendors.map(vendor => vendor.id === vendorId ? {
-      ...vendor,
-      ...details,
-      name,
-      company_name: companyName,
-      phone,
-      email: details.email?.trim() || undefined,
-      address: details.address?.trim() || undefined,
-      gstin: details.gstin?.trim() || undefined
-    } : vendor));
+  async add(details: Omit<Vendor, 'id' | 'created_at'>): Promise<Vendor> {
+    const vendor = await firstValueFrom(this.requireHttp().post<Vendor>(`${API_BASE_URL}/vendors`, this.validate(details)));
+    this.vendors.update(vendors => [vendor, ...vendors]);
+    return vendor;
+  }
+
+  async update(vendorId: number, details: Omit<Vendor, 'id' | 'created_at'>): Promise<Vendor> {
+    const vendor = await firstValueFrom(
+      this.requireHttp().patch<Vendor>(`${API_BASE_URL}/vendors/${vendorId}`, this.validate(details, vendorId)),
+    );
+    this.vendors.update(vendors => vendors.map(existing => existing.id === vendorId ? vendor : existing));
+    return vendor;
   }
 
   findByPhone(phone: string): Vendor | undefined {
@@ -85,5 +35,35 @@ export class VendorService {
 
   findById(vendorId: number): Vendor | undefined {
     return this.vendors().find(vendor => vendor.id === vendorId);
+  }
+
+  async remove(vendorId: number): Promise<void> {
+    await firstValueFrom(this.requireHttp().delete<void>(`${API_BASE_URL}/vendors/${vendorId}`));
+    this.vendors.update(vendors => vendors.filter(vendor => vendor.id !== vendorId));
+  }
+
+  private validate(details: Omit<Vendor, 'id' | 'created_at'>, excludingId?: number) {
+    const name = details.name.trim();
+    const companyName = details.company_name.trim();
+    const phone = details.phone.trim();
+    if (!name || !companyName || !/^[0-9+()\-\s]{7,15}$/.test(phone)) {
+      throw new Error('Enter a vendor contact name, company name, and a valid phone number.');
+    }
+    if (this.vendors().some(vendor => vendor.id !== excludingId && vendor.phone === phone)) {
+      throw new Error(`A vendor with phone ${phone} already exists.`);
+    }
+    return {
+      name,
+      company_name: companyName,
+      phone,
+      email: details.email?.trim() || undefined,
+      address: details.address?.trim() || undefined,
+      gstin: details.gstin?.trim() || undefined,
+    };
+  }
+
+  private requireHttp(): HttpClient {
+    if (!this.http) throw new Error('HTTP client is unavailable.');
+    return this.http;
   }
 }

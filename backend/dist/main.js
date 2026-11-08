@@ -5,8 +5,12 @@ const common_1 = require("@nestjs/common");
 const app_module_1 = require("./app.module");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:4200')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
     app.enableCors({
-        origin: ['http://localhost:4200'],
+        origin: corsOrigins,
         credentials: true,
     });
     app.useGlobalPipes(new common_1.ValidationPipe({
@@ -14,7 +18,7 @@ async function bootstrap() {
         transform: true,
         forbidNonWhitelisted: true,
     }));
-    await app.listen(process.env.PORT ?? 3000);
+    await app.listen(Number(process.env.PORT ?? 3000));
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

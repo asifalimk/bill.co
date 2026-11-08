@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { CompanyProfileService } from './company-profile.service';
+import { UserRole } from '@prisma/client';
+import { CompanyProfileService, CompanyProfileUpdate } from './company-profile.service';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/company-profile')
+@Roles(UserRole.ADMIN, UserRole.CASHIER)
 export class CompanyProfileController {
   constructor(private readonly companyProfileService: CompanyProfileService) {}
 
@@ -11,7 +14,8 @@ export class CompanyProfileController {
   }
 
   @Patch()
-  update(@Body() dto: Partial<{ store_name: string; tagline: string; phone_primary: string; address_line1: string; city: string; state: string; pincode: string; gstin: string; terms_and_conditions: string }>) {
+  @Roles(UserRole.ADMIN)
+  update(@Body() dto: CompanyProfileUpdate) {
     return this.companyProfileService.update(dto);
   }
 }

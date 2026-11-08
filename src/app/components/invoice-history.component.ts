@@ -1,7 +1,7 @@
-import { Component, EventEmitter, Output, computed, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Output, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AuthService } from '../auth.service';
+import { AuthService } from '../core/services/auth.service';
 import { BillingService } from '../billing.service';
 import { PaymentType, Receipt } from '../models';
 import { TranslationPipe } from '../translation.service';
@@ -24,6 +24,7 @@ export class InvoiceHistoryComponent {
   readonly startDate = signal('');
   readonly endDate = signal('');
   readonly selectedInvoice = signal<Receipt | null>(null);
+  readonly loadError = signal('');
 
   readonly filteredInvoices = computed(() => {
     const query = this.search().trim().toLowerCase();
@@ -65,6 +66,19 @@ export class InvoiceHistoryComponent {
 
   @Output() readonly printInvoice = new EventEmitter<Receipt>();
   @Output() readonly editInvoice = new EventEmitter<Receipt>();
+
+  constructor() {
+    effect(() => {
+      const range = this.dateRange();
+      const payment = this.paymentFilter();
+      void this.billing.loadInvoices({
+        ...range,
+        ...(payment === 'ALL' ? {} : { paymentType: payment }),
+      }).then(() => this.loadError.set('')).catch((error: unknown) => {
+        this.loadError.set(error instanceof Error ? error.message : 'Unable to load invoices from the API.');
+      });
+    });
+  }
 
   totalItems(invoice: Receipt): number {
     return invoice.lines.reduce((total, line) => total + line.quantity, 0);
@@ -137,6 +151,41 @@ export class InvoiceHistoryComponent {
       this.startDate.set('');
       this.endDate.set('');
     }
+  }
+
+  private dateRange(): { startDate?: string; endDate?: string } {
+    const preset = this.datePreset();
+    if (preset === 'CUSTOM') {
+      return {
+        ...(this.startDate() ? { startDate: this.startDate() } : {}),
+        ...(this.endDate() ? { endDate: this.endDate() } : {}),
+      };
+    }
+    if (preset === 'ALL') return {};
+    const today = new Date();
+    const format = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    if (preset === 'TODAY') return { startDate: format(today), endDate: format(today) };
+    if (preset === 'THIS_MONTH') {
+      return {
+        startDate: format(new Date(today.getFullYear(), today.getMonth(), 1)),
+        endDate: format(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+      };
+    }
+    if (preset === 'LAST_MONTH') {
+      return {
+        startDate: format(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+        endDate: format(new Date(today.getFullYear(), today.getMonth(), 0)),
+      };
+    }
+    return {
+      startDate: format(new Date(today.getFullYear(), today.getMonth() - 5, 1)),
+      endDate: format(today),
+    };
   }
 
   printSelectedInvoice(): void {

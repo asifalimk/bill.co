@@ -56,6 +56,7 @@ export interface CompanyProfile {
 }
 
 export interface Receipt {
+  id?: number;
   invoiceNo: string;
   date: Date;
   cashier: string;

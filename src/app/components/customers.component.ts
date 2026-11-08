@@ -49,14 +49,14 @@ export class CustomersComponent {
     this.formOpen.set(true);
   }
 
-  saveCustomer(): void {
+  async saveCustomer(): Promise<void> {
     try {
       const details = { name: this.name, phone: this.phone, address: this.address, gstin: this.gstin };
       const existing = this.editingCustomer();
       if (existing) {
-        this.customerService.update(existing.id, details);
+        await this.customerService.update(existing.id, details);
       } else {
-        this.customerService.add(details);
+        await this.customerService.add(details);
       }
       this.formOpen.set(false);
       this.formError.set('');

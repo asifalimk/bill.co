@@ -35,12 +35,20 @@ let CustomersService = class CustomersService {
         return this.prisma.customer.update({ where: { id }, data: dto });
     }
     async adjustCredit(id, amount) {
-        const customer = await this.findOne(id);
-        const updated = await this.prisma.customer.update({
-            where: { id },
-            data: { credit_balance: customer.credit_balance + amount },
-        });
-        return updated;
+        if (!Number.isFinite(amount)) {
+            throw new common_1.BadRequestException('Credit adjustment must be a valid number.');
+        }
+        await this.findOne(id);
+        if (amount < 0) {
+            const updated = await this.prisma.customer.updateMany({
+                where: { id, credit_balance: { gte: Math.abs(amount) } },
+                data: { credit_balance: { decrement: Math.abs(amount) } },
+            });
+            if (!updated.count)
+                throw new common_1.BadRequestException('Credit balance cannot be negative.');
+            return this.findOne(id);
+        }
+        return this.prisma.customer.update({ where: { id }, data: { credit_balance: { increment: amount } } });
     }
     async remove(id) {
         await this.findOne(id);

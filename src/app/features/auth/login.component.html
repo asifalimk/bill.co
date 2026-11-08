@@ -1,0 +1,18 @@
+<main class="login-shell">
+  <section class="login-card panel">
+    <div class="brand-mark">H</div>
+    <p class="eyebrow">HARDWARE COUNTER</p>
+    <h1>Welcome back</h1>
+    <p class="muted">Sign in to open your point-of-sale workspace.</p>
+    <form class="login-form" (ngSubmit)="submit()">
+      <label>Username<input [(ngModel)]="username" name="username" autocomplete="username" required autofocus></label>
+      <label>Password<input [(ngModel)]="password" name="password" type="password" autocomplete="current-password" required></label>
+      @if (error()) {
+        <p class="form-error" role="alert">{{ error() }}</p>
+      }
+      <button class="button button-primary button-wide" type="submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Sign in' }} <span>↗</span>
+      </button>
+    </form>
+  </section>
+</main>

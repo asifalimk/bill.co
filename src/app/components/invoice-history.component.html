@@ -1,6 +1,7 @@
 <section class="page-heading no-print">
   <div><p class="eyebrow">{{ 'SALES LEDGER' | translate }}</p><h1>{{ 'Invoice history' | translate }}</h1><p class="muted">{{ 'Review completed sales and print invoices.' | translate }}</p></div>
 </section>
+@if (loadError()) { <p class="form-error" role="alert">{{ loadError() }}</p> }
 <section class="invoice-kpis no-print" aria-label="Today's invoice summary">
   <article class="panel invoice-kpi"><span>{{ 'Total sales count' | translate }}</span><strong>{{ filteredInvoices().length }}</strong><small>{{ 'Selected range' | translate }}</small></article>
   <article class="panel invoice-kpi"><span>{{ 'Total Revenue' | translate }}</span><strong>₹{{ totalRevenue() | number:'1.2-2' }}</strong><small>{{ 'Selected range' | translate }}</small></article>

@@ -1,83 +1,86 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, Optional, computed, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { API_BASE_URL } from '../config/api.config';
 import { Customer } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   readonly customers = signal<Customer[]>([]);
   readonly customerCount = computed(() => this.customers().length);
-  private nextId = 1;
 
-  add(customer: Omit<Customer, 'id' | 'created_at' | 'credit_balance'>): Customer {
-    const name = customer.name.trim();
-    const phone = customer.phone.trim();
-    if (!name || !/^\d{7,15}$/.test(phone)) {
-      throw new Error('Enter a customer name and a valid 7–15 digit phone number.');
-    }
-    if (this.findByPhone(phone)) {
-      throw new Error(`A customer with phone ${phone} already exists.`);
-    }
-    const created: Customer = {
-      ...customer,
-      id: this.nextId++,
-      name,
-      phone,
-      address: customer.address?.trim() || undefined,
-      gstin: customer.gstin?.trim() || undefined,
-      credit_balance: 0,
-      created_at: new Date().toISOString()
-    };
-    this.customers.update(customers => [created, ...customers]);
-    return created;
+  constructor(@Optional() private readonly http?: HttpClient) {}
+
+  async load(): Promise<void> {
+    const customers = await firstValueFrom(this.requireHttp().get<Customer[]>(`${API_BASE_URL}/customers`));
+    this.customers.set(customers.map(customer => this.mapCustomer(customer)));
   }
 
-  update(customerId: number, details: Omit<Customer, 'id' | 'created_at' | 'credit_balance'>): void {
-    const existing = this.customers().find(customer => customer.id === customerId);
-    if (!existing) {
-      throw new Error(`Cannot update customer ${customerId}: customer was not found.`);
-    }
-    const name = details.name.trim();
-    const phone = details.phone.trim();
-    if (!name || !/^\d{7,15}$/.test(phone)) {
-      throw new Error('Enter a customer name and a valid 7–15 digit phone number.');
-    }
-    if (this.customers().some(customer => customer.id !== customerId && customer.phone === phone)) {
-      throw new Error(`A customer with phone ${phone} already exists.`);
-    }
-    this.customers.update(customers => customers.map(customer => customer.id === customerId
-      ? {
-          ...customer,
-          ...details,
-          name,
-          phone,
-          address: details.address?.trim() || undefined,
-          gstin: details.gstin?.trim() || undefined
-        }
-      : customer));
+  async add(details: Omit<Customer, 'id' | 'created_at' | 'credit_balance'>): Promise<Customer> {
+    const payload = this.validate(details);
+    const customer = this.mapCustomer(await firstValueFrom(
+      this.requireHttp().post<Customer>(`${API_BASE_URL}/customers`, payload),
+    ));
+    this.customers.update(customers => [customer, ...customers]);
+    return customer;
+  }
+
+  async update(
+    customerId: number,
+    details: Omit<Customer, 'id' | 'created_at' | 'credit_balance'>,
+  ): Promise<Customer> {
+    const payload = this.validate(details, customerId);
+    const customer = this.mapCustomer(await firstValueFrom(
+      this.requireHttp().patch<Customer>(`${API_BASE_URL}/customers/${customerId}`, payload),
+    ));
+    this.customers.update(customers => customers.map(existing => existing.id === customerId ? customer : existing));
+    return customer;
   }
 
   findByPhone(phone: string): Customer | undefined {
-    const normalized = phone.trim();
-    return this.customers().find(customer => customer.phone === normalized);
+    return this.customers().find(customer => customer.phone === phone.trim());
   }
 
   findById(customerId: number): Customer | undefined {
     return this.customers().find(customer => customer.id === customerId);
   }
 
-  adjustCreditBalance(customerId: number, amount: number): void {
-    if (!Number.isFinite(amount)) {
-      throw new Error('Credit balance adjustment must be a valid amount.');
-    }
-    const customer = this.findById(customerId);
-    if (!customer) {
-      throw new Error(`Cannot update credit balance: customer ${customerId} was not found.`);
-    }
-    const balance = customer.credit_balance + amount;
-    if (balance < 0) {
-      throw new Error(`Credit balance for ${customer.name} cannot be negative.`);
-    }
-    this.customers.update(customers => customers.map(candidate =>
-      candidate.id === customerId ? { ...candidate, credit_balance: balance } : candidate
+  async adjustCreditBalance(customerId: number, amount: number): Promise<Customer> {
+    if (!Number.isFinite(amount)) throw new Error('Credit balance adjustment must be a valid amount.');
+    const customer = this.mapCustomer(await firstValueFrom(
+      this.requireHttp().patch<Customer>(`${API_BASE_URL}/customers/${customerId}/credit`, { amount }),
     ));
+    this.customers.update(customers => customers.map(existing => existing.id === customerId ? customer : existing));
+    return customer;
+  }
+
+  async remove(customerId: number): Promise<void> {
+    await firstValueFrom(this.requireHttp().delete<void>(`${API_BASE_URL}/customers/${customerId}`));
+    this.customers.update(customers => customers.filter(customer => customer.id !== customerId));
+  }
+
+  private validate(details: Omit<Customer, 'id' | 'created_at' | 'credit_balance'>, excludingId?: number) {
+    const name = details.name.trim();
+    const phone = details.phone.trim();
+    if (!name || !/^\d{7,15}$/.test(phone)) {
+      throw new Error('Enter a customer name and a valid 7–15 digit phone number.');
+    }
+    const duplicate = this.customers().find(customer => customer.id !== excludingId && customer.phone === phone);
+    if (duplicate) throw new Error(`A customer with phone ${phone} already exists.`);
+    return {
+      name,
+      phone,
+      address: details.address?.trim() || undefined,
+      gstin: details.gstin?.trim() || undefined,
+    };
+  }
+
+  private mapCustomer(customer: Customer): Customer {
+    return { ...customer, credit_balance: Number(customer.credit_balance) };
+  }
+
+  private requireHttp(): HttpClient {
+    if (!this.http) throw new Error('HTTP client is unavailable.');
+    return this.http;
   }
 }
